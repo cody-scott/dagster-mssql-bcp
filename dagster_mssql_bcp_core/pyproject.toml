@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dagster-mssql-bcp-core"
+version = "0.0.1"
+dependencies = [
+    "dagster",
+    "dagster_shell",
+    "pendulum",
+    "pyodbc"
+]
+
+requires-python = ">=3.8"
+authors = [
+  { name = "Cody Scott", email = "carry-retort01@icloud.com"}
+]
+
+readme = "README.md"
+license = {file = "LICENSE.txt"}
+
+
+[project.optional-dependencies]
+dev = [
+    "dagster-webserver",
+    "pytest",
+    "pytest-mock",
+    "pytest-cov",
+    "black",
+    "ruff",
+]

@@ -1,0 +1,28 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
+{
+	"name": "bcpcore",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	// "image": "mcr.microsoft.com/devcontainers/python:0-3.11",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "bcpcore",
+	"workspaceFolder": "/workspace/",
+
+	"postCreateCommand": "bash /workspace/.devcontainer/setup_drivers.sh",
+	"postStartCommand": "bash /workspace/.devcontainer/post_start.sh",
+	
+	"containerEnv": {
+		"TARGET_DB__HOST": "dagster_sql_server_bcp",
+		"TARGET_DB__PORT":"1433",
+		"TARGET_DB__DATABASE":"dagster_bcp",
+		"TARGET_DB__USERNAME":"sa",
+		"TARGET_DB__PASSWORD":"yourStrong_Password"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"charliermarsh.ruff"
+			]
+		}
+	}
+}

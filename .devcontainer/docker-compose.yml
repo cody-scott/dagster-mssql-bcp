@@ -1,0 +1,27 @@
+version: "3.7"
+services:
+  bcpcore:
+    image: mcr.microsoft.com/devcontainers/python:0-3.11
+    volumes:
+      - ../:/workspace
+    command: sleep infinity
+
+    networks:
+      - devnet
+    
+  dagster_sql_server_bcp:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: dagster_sql_server_bcp
+    environment:
+      - ACCEPT_EULA=y
+      - MSSQL_SA_PASSWORD=yourStrong_Password
+    ports:
+      - "1433:1433"
+
+    networks:
+      - devnet
+
+
+networks:
+  devnet:
+    driver: bridge

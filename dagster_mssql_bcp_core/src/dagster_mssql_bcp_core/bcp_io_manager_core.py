@@ -1,0 +1,157 @@
+from uuid import uuid4
+
+from dagster import ConfigurableIOManager, InputContext, OutputContext
+
+from dagster_mssql_bcp_core.asset_schema import AssetSchema
+from dagster_mssql_bcp_core.mssql_connection import connect_mssql
+from dagster_mssql_bcp_core.utils import get_cleanup_statement, get_select_statement
+
+
+class BCPIOManagerCore(ConfigurableIOManager):
+    host: str
+    port: str
+    database: str
+    username: str | None = None
+    password: str | None = None
+    driver: str = "ODBC Driver 18 for SQL Server"
+    query_props: dict[str, str] = {}
+
+    add_row_hash: bool = True
+    add_load_timestamp: bool = True
+    add_load_uuid: bool = True
+
+    bcp_arguments: dict[str, str] = {}
+    bcp_path: str | None = None
+
+    process_datetime: bool = True
+    process_replacements: bool = True
+
+    def load_input(self, context: InputContext):
+        raise NotImplementedError
+
+    def handle_output(self, context: OutputContext, obj):
+        if self.check_empty(obj):
+            return
+
+        bcp_manager = self.get_bcp(
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            username=self.username,
+            password=self.password,
+            driver=self.driver,
+            bcp_arguments=self.bcp_arguments,
+            query_props=self.query_props,
+            add_row_hash=self.add_row_hash,
+            add_load_timestamp=self.add_load_timestamp,
+            add_load_uuid=self.add_load_uuid,
+            bcp_path=self.bcp_path,
+        )
+
+        metadata = (
+            context.definition_metadata
+            if context.definition_metadata is not None
+            else {}
+        )
+
+        schema, table = context.asset_key.path[-2], context.asset_key.path[-1]
+        schema = metadata.get("schema", schema)
+        table = metadata.get("table", table)
+
+        asset_schema = metadata.get("asset_schema")
+        assert asset_schema is not None, "No data table provided in metadata"
+        asset_schema = AssetSchema(asset_schema)
+
+        add_row_hash = metadata.get("add_hash", True)
+        add_load_timestamp = metadata.get("add_timestamp", True)
+        add_load_uuid = metadata.get("add_uuid", True)
+        process_datetime = metadata.get("process_datetime", self.process_datetime)
+        process_replacements = metadata.get("process_replacements", self.process_replacements)
+
+        uuid = str(uuid4())
+        uuid_table = uuid.replace("-", "_").split("_")[0]
+        io_table = f"{table}__io__{uuid_table}"
+
+        asset_schema = bcp_manager._add_meta_to_asset_schema(
+            asset_schema,
+            add_row_hash=add_row_hash,
+            add_load_timestamp=add_load_timestamp,
+            add_load_uuid=add_load_uuid,
+        )
+
+        # create the table
+        with connect_mssql(bcp_manager.connection_config) as connection:
+            # if the table doesn't exist do this otherwise select 1=0
+            result = connection.exec_driver_sql(
+                f"""SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'"""
+            )
+            if len(result.fetchall()) == 0:
+                bcp_manager._create_schema(connection, schema)
+                bcp_manager._create_table(
+                    connection=connection,
+                    schema=schema,
+                    table=table,
+                    columns=asset_schema,
+                )
+                bcp_manager._create_table(
+                    connection=connection,
+                    schema=schema,
+                    table=io_table,
+                    columns=asset_schema,
+                )
+            else:
+                connection.exec_driver_sql(
+                    f"""SELECT * INTO {schema}.{io_table} FROM {schema}.{table} WHERE 1=0"""
+                )
+
+        results = bcp_manager.load_bcp(
+            data=obj,
+            schema=schema,
+            table=io_table,
+            asset_schema=asset_schema,
+            add_row_hash=add_row_hash,
+            add_load_timestamp=add_load_timestamp,
+            add_load_uuid=add_load_uuid,
+            uuid=uuid,
+            process_datetime=process_datetime,
+            process_replacements=process_replacements,
+        )
+
+        uuid_value, row_count, deltas = (
+            results["uuid"],
+            results["row_count"],
+            results["schema_deltas"],
+        )
+        asset_schema_columns_str = ",".join(asset_schema.get_columns())
+        with connect_mssql(bcp_manager.connection_config) as connection:
+            cleanup_sql = get_cleanup_statement(table, schema, context)
+            connection.exec_driver_sql(cleanup_sql)
+            connection.exec_driver_sql(
+                f"""
+                    INSERT INTO {schema}.{table} ({asset_schema_columns_str})
+                    SELECT {asset_schema_columns_str}
+                    FROM {schema}.{io_table}"""
+            )
+            connection.exec_driver_sql(f"DROP TABLE {schema}.{io_table}")
+
+        context.add_output_metadata(
+            dict(
+                query=get_select_statement(
+                    table,
+                    schema,
+                    context,
+                    (context.definition_metadata or {}).get("columns"),
+                ),
+                uuid_query=f"SELECT * FROM {schema}.{table} WHERE load_uuid = '{uuid_value}'",
+                row_count=row_count,
+            )
+            | deltas
+        )
+
+    def check_empty(self, obj) -> bool:
+        """Checks if frame is empty"""
+        raise NotImplementedError
+
+    def get_bcp(self, *args, **kwargs):
+        """Returns an instance of the BCP class for the given connection details."""
+        raise NotImplementedError
