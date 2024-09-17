@@ -18,11 +18,14 @@ schema_spec = {
             "type": {
                 "type": "string",
                 "enum": [
-                    "VARCHAR",
-                    "NVARCHAR",
                     "DATETIME2",
                     "DATETIME",
                     "DATETIMEOFFSET",
+                    "DATE",
+                    "TIME",
+                    "VARCHAR",
+                    "NVARCHAR",
+                    "BIT",
                     "BIGINT",
                     "INT",
                     "SMALLINT",
@@ -31,10 +34,6 @@ schema_spec = {
                     "DECIMAL",
                     "MONEY",
                     "XML",
-                    "DATE",
-                    "TIME",
-                    "DATE",
-                    "BIT",
                 ],
             },
             "length": {"type": "integer"},
@@ -191,9 +190,7 @@ class AssetSchema:
         return columns
 
     def get_rename_dict(self) -> dict[str, str]:
-        return {
-            column["name"]: self._resolve_name(column) for column in self.schema
-        }
+        return {column["name"]: self._resolve_name(column) for column in self.schema}
 
     @staticmethod
     def get_asset_schema_from_db(
