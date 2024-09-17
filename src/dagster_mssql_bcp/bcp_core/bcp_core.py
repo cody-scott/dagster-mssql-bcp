@@ -702,7 +702,7 @@ class BCPCore(ABC):
                 "-t": '"\t"',
                 "-r": '"\n"',
                 "-f": f'"{str(format_file_path)}"',
-                "-e": '"{error_file_path}"',
+                "-e": f'"{error_file_path}"',
                 "-m1": "",
                 "-F": 2,
                 "-b": 5000,
