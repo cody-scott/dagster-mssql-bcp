@@ -1,22 +1,20 @@
-from dagster_mssql_bcp_core import BCPIOManagerCore, get_select_statement
-from dagster_mssql_polars.polars_mssql_bcp import PolarsBCP
-
-import polars as pl
-
 from dagster import InputContext
 
-class PolarsBCPIOManager(BCPIOManagerCore):
-    def load_input(self, context: InputContext) -> pl.DataFrame:
-        asset_key = context.asset_key
-        schema, table = asset_key.path[-2], asset_key.path[-1]
+from dagster_mssql_bcp.bcp_core import (
+    BCPIOManagerCore,
+    get_select_statement,
+)
 
-        _sql = get_select_statement(
-            table,
-            schema,
-            (context.definition_metadata or {}).get("columns"),
-            context,
-        )
+try:
+    import pandas as pd
+except ImportError:
+    has_pandas = False
 
+from dagster_mssql_bcp.bcp_pandas import PandasBCP
+
+
+class PandasBCPIOManager(BCPIOManagerCore):
+    def load_input(self, context: InputContext) -> pd.DataFrame:
         bcp_manager = self.get_bcp(
             host=self.host,
             port=self.port,
@@ -32,28 +30,32 @@ class PolarsBCPIOManager(BCPIOManagerCore):
             bcp_path=self.bcp_path,
         )
 
+        asset_key = context.asset_key
+        schema, table = asset_key.path[-2], asset_key.path[-1]
+        _sql = get_select_statement(
+            table,
+            schema,
+            context,
+            (context.definition_metadata or {}).get("columns"),
+        )
         connection_str = bcp_manager.generate_connection_url(
             self.connection_config
         ).render_as_string(hide_password=False)
-
-        df = pl.read_database_uri(
-            query=_sql,
-            uri=connection_str,
-        )
+        df = pd.read_sql(sql=_sql, con=connection_str, dtype="str")
         return df
 
     def get_bcp(
         self,
         *args,
         **kwargs,
-    ) -> PolarsBCP:
-        return PolarsBCP(
+    ) -> PandasBCP:
+        return PandasBCP(
             *args,
             **kwargs,
         )
 
     def check_empty(self, obj):
-        if obj is None or obj.is_empty():
+        if obj is None or obj.empty:
             return True
         else:
             return False

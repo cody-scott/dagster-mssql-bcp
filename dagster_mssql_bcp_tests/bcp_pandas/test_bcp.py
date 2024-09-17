@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 from sqlalchemy import URL, create_engine, text
 
-from dagster_mssql_pandas import pandas_mssql_bcp
-from dagster_mssql_bcp_core.asset_schema import AssetSchema
+from dagster_mssql_bcp.bcp_pandas import pandas_mssql_bcp
+from dagster_mssql_bcp.bcp_core.asset_schema import AssetSchema
 
 class TestPandasBCP:
     @pytest.fixture
@@ -58,7 +58,7 @@ class TestPandasBCP:
 
         return db_config
 
-    def test_evolution(self, pandas_io: pandas_mssql_bcp.PandasBCP):
+    def test_bcp_load(self, pandas_io: pandas_mssql_bcp.PandasBCP):
         schema = "test"
         table = "table_data"
         with self.connect_mssql() as con:

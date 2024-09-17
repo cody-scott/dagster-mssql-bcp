@@ -1,4 +1,4 @@
-from dagster_mssql_bcp_core import asset_schema
+from dagster_mssql_bcp.bcp_core import asset_schema
 
 import pytest
 from contextlib import contextmanager

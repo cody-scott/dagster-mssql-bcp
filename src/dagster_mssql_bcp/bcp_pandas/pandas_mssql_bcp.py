@@ -1,12 +1,17 @@
-import pandas as pd
+import csv
+from pathlib import Path
+
+try:
+    import pandas as pd
+except ImportError:
+    has_pandas = False
+
 import pendulum
-
-from dagster_mssql_bcp_core import BCPCore, AssetSchema
-
 from dagster import get_dagster_logger
 
-from pathlib import Path
-import csv
+from dagster_mssql_bcp.bcp_core import AssetSchema, BCPCore
+
+
 
 class PandasBCP(BCPCore):
     def _add_meta_columns(

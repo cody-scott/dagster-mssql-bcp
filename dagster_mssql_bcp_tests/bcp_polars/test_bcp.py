@@ -5,8 +5,8 @@ import polars as pl
 import pytest
 from sqlalchemy import URL, create_engine, text
 
-from dagster_mssql_polars import polars_mssql_bcp
-from dagster_mssql_bcp_core.asset_schema import AssetSchema
+from dagster_mssql_bcp.bcp_polars import polars_mssql_bcp
+from dagster_mssql_bcp.bcp_core.asset_schema import AssetSchema
 
 class TestPolarsBCP:
     @pytest.fixture
@@ -58,7 +58,7 @@ class TestPolarsBCP:
 
         return db_config
 
-    def test_evolution(self, polars_io: polars_mssql_bcp.PolarsBCP):
+    def test_bcp_load(self, polars_io: polars_mssql_bcp.PolarsBCP):
         schema = "test"
         table = "table_data"
         with self.connect_mssql() as con:

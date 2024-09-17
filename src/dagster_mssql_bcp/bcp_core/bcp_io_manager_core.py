@@ -2,9 +2,9 @@ from uuid import uuid4
 
 from dagster import ConfigurableIOManager, InputContext, OutputContext
 
-from dagster_mssql_bcp_core.asset_schema import AssetSchema
-from dagster_mssql_bcp_core.mssql_connection import connect_mssql
-from dagster_mssql_bcp_core.utils import get_cleanup_statement, get_select_statement
+from .asset_schema import AssetSchema
+from .mssql_connection import connect_mssql
+from .utils import get_cleanup_statement, get_select_statement
 
 
 class BCPIOManagerCore(ConfigurableIOManager):

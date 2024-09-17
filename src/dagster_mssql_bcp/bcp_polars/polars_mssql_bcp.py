@@ -1,10 +1,16 @@
 from pathlib import Path
 
-import pendulum
-import polars as pl
-import polars.selectors as cs
 
-from dagster_mssql_bcp_core import AssetSchema, BCPCore
+import pendulum
+
+try:
+    import polars as pl
+    import polars.selectors as cs
+    polars_available = 1
+except ImportError:
+    polars_available=0
+
+from dagster_mssql_bcp.bcp_core import AssetSchema, BCPCore
 
 
 class PolarsBCP(BCPCore):
@@ -60,6 +66,10 @@ class PolarsBCP(BCPCore):
                 pl.col(_).str.replace_all(",", "")
                 for _ in number_columns_that_are_strings
             ]
+        )
+
+        data = data.with_columns(
+            [pl.col(_).cast(pl.Int64) for _ in data.select(cs.boolean()).columns]
         )
 
         return data

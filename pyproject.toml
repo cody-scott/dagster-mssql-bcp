@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dagster-mssql-bcp-core"
+name = "dagster-mssql-bcp"
 version = "0.0.1"
 dependencies = [
     "dagster",
@@ -20,9 +20,22 @@ authors = [
 readme = "README.md"
 license = {file = "LICENSE.txt"}
 
+pandas=[
+  "pandas"
+]
+
+polars=[
+  "polars"
+]
+
+all = [
+  "dagster-mssql-bcp[polars,pandas]"
+]
 
 [project.optional-dependencies]
 dev = [
+    "pandas",
+    "polars",
     "dagster-webserver",
     "pytest",
     "pytest-mock",

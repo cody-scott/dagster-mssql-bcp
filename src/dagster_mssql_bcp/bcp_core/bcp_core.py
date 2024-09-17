@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -10,10 +12,9 @@ from dagster import (
 from dagster_shell import execute_shell_command
 from sqlalchemy import Connection, text
 
-from dagster_mssql_bcp_core.asset_schema import AssetSchema
-from dagster_mssql_bcp_core.mssql_connection import (
-    connect_mssql,
-)
+from .asset_schema import AssetSchema
+from .mssql_connection import connect_mssql
+
 
 from .bcp_logger import BCPLogger
 
@@ -327,31 +328,35 @@ class BCPCore(ABC):
         Returns:
             AssetSchema: The updated asset schema with the added metadata columns.
         """
-        for column, include in zip(
-            [
+        schema_columns = asset_schema.get_columns()
+        if add_row_hash and "row_hash" not in schema_columns:
+            asset_schema.add_column(
                 {
                     "name": "row_hash",
                     "type": "NVARCHAR",
                     "length": 200,
                     "hash": False,
-                },
+                }
+            )
+
+        if add_load_uuid and "load_uuid" not in schema_columns:
+            asset_schema.add_column(
                 {
                     "name": "load_uuid",
                     "type": "NVARCHAR",
                     "length": 200,
                     "hash": False,
-                },
+                }
+            )
+
+        if add_load_timestamp and "load_timestamp" not in schema_columns:
+            asset_schema.add_column(
                 {
                     "name": "load_timestamp",
                     "type": "DATETIME2",
                     "hash": False,
-                },
-            ],
-            [add_load_uuid, add_load_timestamp, add_row_hash],
-        ):
-            if include and column["name"] not in asset_schema.get_columns():
-                asset_schema.add_column(column)
-
+                }
+            )
         return asset_schema
 
     # region pre load

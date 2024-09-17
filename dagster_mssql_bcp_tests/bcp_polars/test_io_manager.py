@@ -1,13 +1,12 @@
-from dagster_mssql_pandas import pandas_mssql_io_manager
+from dagster_mssql_bcp.bcp_polars import polars_mssql_io_manager
 import os
 
 from contextlib import contextmanager
 from sqlalchemy import create_engine, URL, text
 from dagster import build_output_context
-import pandas as pd
+import polars as pl
 
-
-class TestPandasBCPIO:
+class TestPolarsBCPIO:
     @contextmanager
     def connect_mssql(self):
         config = self.get_database_connection()
@@ -40,7 +39,7 @@ class TestPandasBCPIO:
         return db_config
 
     def io(self):
-        return pandas_mssql_io_manager.PandasBCPIOManager(
+        return polars_mssql_io_manager.PolarsBCPIOManager(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -55,10 +54,10 @@ class TestPandasBCPIO:
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
 
-    def test_evolution(self):
+    def test_handle_output_basic(self):
         # setup
-        schema = "test_pandas_bcp_schema"
-        table = "test_pandas_bcp_table_io_handle_output"
+        schema = "test_polars_bcp_schema"
+        table = "test_polars_bcp_table_io_handle_output"
 
         create_schema = f"""
         IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '{schema}')
@@ -70,14 +69,14 @@ class TestPandasBCPIO:
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         with self.connect_mssql() as connection:
-            connection.execute(text(create_schema))
-            connection.execute(text(drop))
-            connection.execute(text(drop + "_old"))
+            connection.exec_driver_sql(create_schema)
+            connection.exec_driver_sql(drop)
+            connection.exec_driver_sql(drop + "_old")
 
         io_manager = self.io()
 
         # original structure
-        data = pd.DataFrame(
+        data = pl.DataFrame(
             {
                 "a": [1, 1, 1],
                 "b": ["2", "2", "2"],
@@ -105,7 +104,7 @@ class TestPandasBCPIO:
             io_manager.handle_output(ctx, data)
 
         # add a column to delivery
-        data = pd.DataFrame(
+        data = pl.DataFrame(
             {
                 "a": [1, 1, 1],
                 "b": ["2", "2", "2"],
