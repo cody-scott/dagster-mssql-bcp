@@ -9,15 +9,14 @@ from uuid import uuid4
 from dagster import (
     get_dagster_logger,
 )
-from dagster_shell import execute_shell_command
+# from dagster_shell import execute_shell_command
 from sqlalchemy import Connection, text
 
 from .asset_schema import AssetSchema
+from .bcp_logger import BCPLogger
 from .mssql_connection import connect_mssql
 
-
-from .bcp_logger import BCPLogger
-
+from .shell_exec import execute as execute_shell_command
 
 class BCPCore(ABC):
     """
@@ -789,6 +788,33 @@ class BCPCore(ABC):
 
             get_dagster_logger().error(f"BCP error: {error_message}")
             raise ae
+
+    # def _run_bcp(self, cmd: str, logger: BCPLogger):
+    #     if IS_WIN32:
+    #         with_shell = False
+    #     else:
+    #         with_shell = True
+    #         cmd = " ".join(cmd).replace("\\", "\\\\")  # type: ignore
+    #     proc = Popen(
+    #         cmd,
+    #         stdout=PIPE,
+    #         stderr=STDOUT,
+    #         encoding="utf-8",
+    #         errors="utf-8",
+    #         shell=with_shell,
+    #     )
+    #     stdout = []
+    #     # live stream STDOUT and STDERR
+    #     while True:
+    #         outs = proc.stdout.readline()  # type: ignore[union-attr]
+    #         if outs:
+    #             if print_output:
+    #                 print(outs, end="")
+    #             logger.info(outs)
+    #             stdout.append(outs)
+    #         if proc.poll() is not None and outs == "":
+    #             break
+    #     return proc.returncode, stdout
 
     # endregion
 
