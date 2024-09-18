@@ -9,14 +9,12 @@ from uuid import uuid4
 from dagster import (
     get_dagster_logger,
 )
-# from dagster_shell import execute_shell_command
+from dagster_shell import execute_shell_command
 from sqlalchemy import Connection, text
 
 from .asset_schema import AssetSchema
 from .bcp_logger import BCPLogger
 from .mssql_connection import connect_mssql
-
-from .shell_exec import execute as execute_shell_command
 
 class BCPCore(ABC):
     """

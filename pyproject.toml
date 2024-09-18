@@ -7,7 +7,7 @@ name = "dagster-mssql-bcp"
 version = "0.0.2"
 dependencies = [
     "dagster",
-
+    "dagster-shell",
     "pendulum",
     "pyodbc",
     "polars",
