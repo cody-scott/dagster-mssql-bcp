@@ -33,20 +33,19 @@ class BCPCore(ABC):
     username: str | None
     password: str | None
 
+    query_props: dict[str, str]
+
     bcp_arguments: dict[str, str] = {}
+    bcp_path: str | None
 
     driver: str
 
-    query_props: dict[str, str]
+    process_datetime: bool
+    process_replacements: bool
 
     add_row_hash: bool
     add_load_datetime: bool
     add_load_uuid: bool
-
-    bcp_path: str | None
-
-    process_datetime: bool
-    process_replacements: bool
 
     row_hash_column_name: str
     load_uuid_column_name: str
@@ -58,8 +57,8 @@ class BCPCore(ABC):
     def __init__(
         self,
         host: str,
-        port: str | int,
         database: str,
+        port: str | int = "1433",
         username: str | None = None,
         password: str | None = None,
         bcp_arguments: dict[str, str] = {},
@@ -202,73 +201,34 @@ class BCPCore(ABC):
             asset_schema, add_row_hash, add_load_datetime, add_load_uuid
         )
 
-        schema_deltas = {}
-
         with connect_mssql(connection_config_dict) as connection:
-            data = self._add_meta_columns(
-                data,
-                uuid_value=uuid,
-                add_hash=add_row_hash,
-                add_datetime=add_load_datetime,
-                add_uuid=add_load_uuid,
-            )
-
-            sql_structure = self._get_sql_columns(connection, schema, table)
-            frame_columns = self._get_frame_columns(data)
-
-            if sql_structure is not None:
-                schema_deltas = self._validate_columns(
-                    frame_columns, asset_schema.get_columns(), sql_structure
-                )
-
-            # Filter columns that are not in the json schema (evolution)
-            data = self._filter_columns(data, asset_schema.get_columns())
-
-            sql_structure = sql_structure or frame_columns
-            data = self._reorder_columns(data, sql_structure)
-            data_columns_str = ",".join(data.columns)
-
-            if process_replacements:
-                data = self._replace_values(data, asset_schema)
-            if process_datetime:
-                data = self._process_datetime(data, asset_schema)
-
-            self._create_schema(connection, schema)
-            self._create_table(
+            data, schema_deltas = self._pre_bcp_stage(
                 connection,
+                data,
                 schema,
                 table,
                 asset_schema,
-            )
-            connection.execute(
-                text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"')
-            )
-            connection.execute(
-                text(
-                    f"""
-                        SELECT {data_columns_str}
-                        INTO {schema}.{staging_table}
-                        FROM {schema}.{table}
-                        WHERE 1=0
-                    """
-                )
+                add_row_hash,
+                add_load_datetime,
+                add_load_uuid,
+                uuid,
+                process_datetime,
+                process_replacements,
             )
 
-        with TemporaryDirectory() as temp_dir:
-            temp_dir = Path(temp_dir)
-            format_file = temp_dir / f"{table}_format_file.fmt"
-            error_file = temp_dir / f"{table}_error_file.err"
-            csv_file = self._save_csv(data, temp_dir, f"{table}.csv")
+            self._create_target_tables(data, schema, table, asset_schema, staging_table, connection)
 
-            self._generate_format_file(schema, staging_table, format_file)
-            self._insert_with_bcp(
-                schema,
-                staging_table,
-                csv_file,
-                format_file,
-                error_file,
-            )
+        self._bcp_stage(data, schema, table, staging_table)
 
+        new_line_count = self._post_bcp_stage(data, schema, table, asset_schema, add_row_hash, process_replacements, connection_config_dict, staging_table)
+
+        return {
+            "uuid": uuid,
+            "row_count": new_line_count,
+            "schema_deltas": schema_deltas,
+        }
+
+    def _post_bcp_stage(self, data, schema, table, asset_schema, add_row_hash, process_replacements, connection_config_dict, staging_table):
         with connect_mssql(connection_config_dict) as con:
             # Validate loads (counts of tables match)
             new_line_count = self._validate_bcp_load(
@@ -288,12 +248,92 @@ class BCPCore(ABC):
                 self._calculate_row_hash(
                     con, schema, table, asset_schema.get_hash_columns()
                 )
+                
+        return new_line_count
 
-        return {
-            "uuid": uuid,
-            "row_count": new_line_count,
-            "schema_deltas": schema_deltas,
-        }
+    def _bcp_stage(self, data, schema, table, staging_table):
+        with TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            format_file = temp_dir / f"{table}_format_file.fmt"
+            error_file = temp_dir / f"{table}_error_file.err"
+            csv_file = self._save_csv(data, temp_dir, f"{table}.csv")
+
+            self._generate_format_file(schema, staging_table, format_file)
+            self._insert_with_bcp(
+                schema,
+                staging_table,
+                csv_file,
+                format_file,
+                error_file,
+            )
+
+    def _create_target_tables(self, data, schema, table, asset_schema, staging_table, connection):
+        data_columns_str = ",".join(self._get_frame_columns(data))
+
+        self._create_schema(connection, schema)
+        self._create_table(
+                connection,
+                schema,
+                table,
+                asset_schema,
+            )
+        connection.execute(
+                text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"')
+            )
+        connection.execute(
+                text(
+                    f"""
+                        SELECT {data_columns_str}
+                        INTO {schema}.{staging_table}
+                        FROM {schema}.{table}
+                        WHERE 1=0
+                    """
+                )
+            )
+
+    def _pre_bcp_stage(
+        self,
+        connection,
+        data,
+        schema,
+        table,
+        asset_schema,
+        add_row_hash,
+        add_load_datetime,
+        add_load_uuid,
+        uuid,
+        process_datetime,
+        process_replacements,
+    ):
+        data = self._add_meta_columns(
+            data,
+            uuid_value=uuid,
+            add_hash=add_row_hash,
+            add_datetime=add_load_datetime,
+            add_uuid=add_load_uuid,
+        )
+
+        sql_structure = self._get_sql_columns(connection, schema, table)
+        frame_columns = self._get_frame_columns(data)
+
+        schema_deltas = {}
+        if sql_structure is not None:
+            schema_deltas = self._validate_columns(
+                frame_columns, asset_schema.get_columns(), sql_structure
+            )
+
+            # Filter columns that are not in the json schema (evolution)
+        data = self._filter_columns(data, asset_schema.get_columns())
+
+        sql_structure = sql_structure or frame_columns
+        data = self._reorder_columns(data, sql_structure)
+
+        if process_replacements:
+            data = self._replace_values(data, asset_schema)
+        if process_datetime:
+            data = self._process_datetime(data, asset_schema)
+
+        return data, schema_deltas
 
     def _parse_asset_schema(self, schema, table, asset_schema):
         """
@@ -319,8 +359,8 @@ class BCPCore(ABC):
                     table=table,
                     exclude_columns=[
                         self.row_hash_column_name,
-                        self.load_uuid_column_name, 
-                        self.load_datetime_column_name, 
+                        self.load_uuid_column_name,
+                        self.load_datetime_column_name,
                     ],
                 )
         elif isinstance(asset_schema, list):

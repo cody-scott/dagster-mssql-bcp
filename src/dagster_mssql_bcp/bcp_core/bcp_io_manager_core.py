@@ -26,6 +26,10 @@ class BCPIOManagerCore(ConfigurableIOManager):
     process_datetime: bool = True
     process_replacements: bool = True
 
+    row_hash_column_name: str = "row_hash"
+    load_uuid_column_name: str = "load_uuid"
+    load_datetime_column_name: str = "load_datetime"
+
     def load_input(self, context: InputContext):
         raise NotImplementedError
 
@@ -46,6 +50,9 @@ class BCPIOManagerCore(ConfigurableIOManager):
             add_load_datetime=self.add_load_datetime,
             add_load_uuid=self.add_load_uuid,
             bcp_path=self.bcp_path,
+            row_hash_column_name=self.row_hash_column_name,
+            load_uuid_column_name=self.load_uuid_column_name,
+            load_datetime_column_name=self.load_datetime_column_name,
         )
 
         metadata = (

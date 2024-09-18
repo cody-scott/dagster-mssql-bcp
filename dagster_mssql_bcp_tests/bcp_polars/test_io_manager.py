@@ -3,8 +3,15 @@ import os
 
 from contextlib import contextmanager
 from sqlalchemy import create_engine, URL, text
-from dagster import build_output_context
+from dagster import (
+    build_output_context,
+    materialize,
+    asset,
+    DailyPartitionsDefinition,
+    StaticPartitionsDefinition,
+)
 import polars as pl
+
 
 class TestPolarsBCPIO:
     @contextmanager
@@ -48,9 +55,7 @@ class TestPolarsBCPIO:
             query_props={
                 "TrustServerCertificate": "yes",
             },
-            bcp_arguments={
-                '-u': ''
-            },
+            bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
 
@@ -170,3 +175,135 @@ class TestPolarsBCPIO:
             definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
+
+    def test_handle_output_time_partition(self):
+        schema = "test_polars_bcp_schema"
+        table = "asset_time_part"
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        io_manager = self.io()
+
+        asset_schema = [
+            {"name": "a", "alias": "a", "type": "INT", "identity": True},
+            {"name": "b", "type": "DATETIME2"},
+        ]
+
+        @asset(
+            name=table,
+            key_prefix=["data"],
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "partition_expr": "b",
+            },
+            partitions_def=DailyPartitionsDefinition(
+                start_date="2021-01-01", end_date="2021-01-03"
+            ),
+        )
+        def my_asset(context):
+            return data
+
+        # original structure
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["2021-01-01", "2021-01-01"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="2021-01-01",
+            resources={"io_manager": io_manager},
+        )
+
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["2021-01-02", "2021-01-02"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="2021-01-02",
+            resources={"io_manager": io_manager},
+        )
+
+        data = pl.DataFrame(
+            {
+                "a": [2, 2, 2],
+                "b": ["2021-01-01", "2021-01-01", "2021-01-02"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="2021-01-01",
+            resources={"io_manager": io_manager},
+        )
+
+    def test_handle_output_static_partition(self):
+        schema = "test_pandas_bcp_schema"
+        table = "my_pandas_asset_static_part"
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        io_manager = self.io()
+
+        asset_schema = [
+            {"name": "a", "alias": "a", "type": "INT", "identity": True},
+            {"name": "b", "type": "NVARCHAR", "length": 10},
+        ]
+
+        @asset(
+            name=table,
+            key_prefix=["data"],
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "partition_expr": "b",
+            },
+            partitions_def=StaticPartitionsDefinition(["a", "b"]),
+        )
+        def my_asset(context):
+            return data
+
+            # original structure
+
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["a", "a"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="a",
+            resources={"io_manager": io_manager},
+        )
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["b", "b"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="a",
+            resources={"io_manager": io_manager},
+        )
+
+        data = pl.DataFrame(
+            {
+                "a": [1, 1, 2],
+                "b": ["a", "a", "a"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="a",
+            resources={"io_manager": io_manager},
+        )
