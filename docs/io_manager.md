@@ -72,12 +72,12 @@ metadata={
 
 These include the host, database, user, password, driver and query_props. These are passed along to SQLAlchemy/pyodbc to connect to the MSSQL server. This is used to create the intial tables, schemas and connections.
 
-* host: str -> The host of the MSSQL server.
-* database: str -> The database to load the data into.
-* user: str -> The username to connect to the MSSQL server.
-* password: str -> The password to connect to the MSSQL server.
-* driver: str -> The driver to use to connect to the MSSQL server. Default is `ODBC Driver 18 for SQL Server`.
-* query_props: Dict[str, Any] -> The properties to pass to the pyodbc/sqlalchemy connection.
+* `host`: str -> The host of the MSSQL server.
+* `database`: str -> The database to load the data into.
+* `user`: str -> The username to connect to the MSSQL server.
+* `password`: str -> The password to connect to the MSSQL server.
+* `driver`: str -> The driver to use to connect to the MSSQL server. Default is `ODBC Driver 18 for SQL Server`.
+* `query_props`: Dict[str, Any] -> The properties to pass to the pyodbc/sqlalchemy connection.
 
 
 ### bcp arguments
@@ -86,22 +86,29 @@ The `bcp_arguments` dictionary is passed along to the `bcp` command. [BCP doc li
 
 If your BCP tool is not on your `path`, then you can set the path to the BCP tool using the `bcp_path` argument.
 
-* bcp_arguments: Dict[str, str] -> The arguments to pass to the BCP command.
-* bcp_path: str -> The path to the BCP tool. If not on the path, you must set this.
+* `bcp_arguments`: Dict[str, str] -> The arguments to pass to the BCP command.
+* `bcp_path`: str -> The path to the BCP tool. If not on the path, you must set this.
 
 
 ### meta column arguments
 
 These are the arguments that are added to the data when loaded. These are used to track the data as it is loaded into the database. These are to help identify the loads and rows that are loaded from the job. Setting the `add_*` flags to `False` will disable the addition of these columns.
 
-* add_row_hash: bool -> Flag to add a hash of the row to the data. Default is `True`.
-* add_load_uuid: bool -> Flag to add a load UUID to the data. Default is `True`.
-* add_load_datetime: bool -> Flag to add a load date to the data. Default is `True`.
+* `add_row_hash`: bool -> Flag to add a hash of the row to the data. Default is `True`.
+* `add_load_uuid`: bool -> Flag to add a load UUID to the data. Default is `True`.
+* `add_load_datetime`: bool -> Flag to add a load date to the data. Default is `True`.
 
-* row_hash_column_name: str -> The name of the column to store the row hash in. Default is `row_hash`.
-* load_uuid_column_name: str -> The name of the column to store the load UUID in. Default is `load_uuid`.
-* load_datetime_column_name: str -> The name of the column to store the load datetime in. Default is `load_datetime`.
+* `row_hash_column_name`: str -> The name of the column to store the row hash in. Default is `row_hash`.
+* `load_uuid_column_name`: str -> The name of the column to store the load UUID in. Default is `load_uuid`.
+* `load_datetime_column_name`: str -> The name of the column to store the load datetime in. Default is `load_datetime`.
 
+```python
+metadata={
+    'add_row_hash': False,
+    'add_load_uuid': False,
+    'add_load_datetime': False,
+}
+```
 
 ## Additional Details
 

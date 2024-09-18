@@ -4,13 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dagster-mssql-bcp"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
     "dagster",
     "dagster_shell",
     "pendulum",
     "pyodbc",
-
     "polars",
     "pandas"
 ]
@@ -37,8 +36,6 @@ all = [
 
 [project.optional-dependencies]
 dev = [
-    "pandas",
-    "polars",
     "dagster-webserver",
     "pytest",
     "pytest-mock",
@@ -46,3 +43,9 @@ dev = [
     "black",
     "ruff",
 ]
+
+[project.urls]
+Homepage = "https://github.com/cody-scott/dagster-mssql-bcp"
+Documentation = "https://github.com/cody-scott/dagster-mssql-bcp/tree/main/docs"
+Repository = "https://github.com/cody-scott/dagster-mssql-bcp.git"
+Issues = "https://github.com/cody-scott/dagster-mssql-bcp/issues"

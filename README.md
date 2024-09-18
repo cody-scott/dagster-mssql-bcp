@@ -6,6 +6,10 @@ This is a customer dagster IO manager for loading data into SQL Server using the
 
 ## What you need to run it
 
+### Pypi
+
+`pip install dagster-mssql-bcp`
+
 ### BCP Utility
 
 The `bcp` utility must be installed on the machine that is running the dagster pipeline.
@@ -113,4 +117,4 @@ The `asset schema` defines your table structure and your asset returns your data
 
 ## Docs
 
-For more details see [assets doc](docs/assets.md), [io manager doc](docs/io_manager.md), and for how its implemented, the [dev doc](docs/dev.md).
+For more details see [assets doc](https://github.com/cody-scott/dagster-mssql-bcp/blob/main/docs/assets.md), [io manager doc](https://github.com/cody-scott/dagster-mssql-bcp/blob/main/docs/io_manager.md), and for how its implemented, the [dev doc](https://github.com/cody-scott/dagster-mssql-bcp/blob/main/docs/dev.md).

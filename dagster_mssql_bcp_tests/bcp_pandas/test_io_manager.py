@@ -307,3 +307,42 @@ class TestPandasBCPIO:
         )
 
 
+    def test_basic_no_extras(self):
+
+        schema = 'test_pandas_bcp_schema'
+        table = 'basic_no_extra'
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        io_manager = self.io()
+
+        asset_schema = [
+            {"name": "a", "alias": "a", "type": "INT", "identity": True},
+            {"name": "b", "type": "NVARCHAR", "length": 10},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                'add_row_hash': False,
+                'add_load_datetime': False,
+                'add_load_uuid': False
+            },
+        )
+        def my_asset(context):
+            return data
+        
+                # original structure
+        data = pd.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["a", "a"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )

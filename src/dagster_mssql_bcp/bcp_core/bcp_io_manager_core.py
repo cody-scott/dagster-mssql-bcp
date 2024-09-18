@@ -61,7 +61,12 @@ class BCPIOManagerCore(ConfigurableIOManager):
             else {}
         )
 
-        schema, table = context.asset_key.path[-2], context.asset_key.path[-1]
+        if len(context.asset_key.path) < 2:
+            schema = 'dbo'
+            table = context.asset_key.path[-1]
+        else:
+            schema, table = context.asset_key.path[-2], context.asset_key.path[-1]
+            
         schema = metadata.get("schema", schema)
         table = metadata.get("table", table)
 
@@ -69,9 +74,10 @@ class BCPIOManagerCore(ConfigurableIOManager):
         assert asset_schema is not None, "No data table provided in metadata"
         asset_schema = AssetSchema(asset_schema)
 
-        add_row_hash = metadata.get("add_hash", True)
-        add_load_datetime = metadata.get("add_timestamp", True)
-        add_load_uuid = metadata.get("add_uuid", True)
+        add_row_hash = metadata.get("add_row_hash", True)
+        add_load_datetime = metadata.get("add_load_datetime", True)
+        add_load_uuid = metadata.get("add_load_uuid", True)
+
         process_datetime = metadata.get("process_datetime", self.process_datetime)
         process_replacements = metadata.get("process_replacements", self.process_replacements)
 
@@ -107,8 +113,10 @@ class BCPIOManagerCore(ConfigurableIOManager):
                     columns=asset_schema,
                 )
             else:
+                cols = ",".join(asset_schema.get_columns())
+
                 connection.exec_driver_sql(
-                    f"""SELECT * INTO {schema}.{io_table} FROM {schema}.{table} WHERE 1=0"""
+                    f"""SELECT {cols} INTO {schema}.{io_table} FROM {schema}.{table} WHERE 1=0"""
                 )
 
         results = bcp_manager.load_bcp(
