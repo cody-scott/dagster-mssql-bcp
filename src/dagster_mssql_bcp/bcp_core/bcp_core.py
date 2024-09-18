@@ -9,7 +9,7 @@ from uuid import uuid4
 from dagster import (
     get_dagster_logger,
 )
-from dagster_shell import execute_shell_command
+from .shell import execute as execute_shell_command
 from sqlalchemy import Connection, text
 
 from .asset_schema import AssetSchema
