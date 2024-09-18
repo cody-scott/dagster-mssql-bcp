@@ -59,16 +59,15 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("nan", "")
                 .str.replace_all("NAN", "")
                 for _ in data.select(cs.by_dtype(pl.String)).columns
-            ]
-        )
-        data = data.with_columns(
+                if _ not in number_columns_that_are_strings
+            ] +
             [
-                pl.col(_).str.replace_all(",", "")
+                pl.col(_)
+                .str.replace_all(",", "")
+                .str.replace_all("nan", "")
+                .str.replace_all("NAN", "")
                 for _ in number_columns_that_are_strings
-            ]
-        )
-
-        data = data.with_columns(
+            ] +
             [pl.col(_).cast(pl.Int64) for _ in data.select(cs.boolean()).columns]
         )
 

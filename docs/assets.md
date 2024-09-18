@@ -47,6 +47,7 @@ The `Asset Schema` is a list of dictionaries that describe the data you are load
 * precision: int -> If the column is a `DECIMAL` or `NUMERIC`, the precision of the number. If not a number, this key is ignored. Default is `18`.
 * scale: int -> If the column is a `DECIMAL` or `NUMERIC`, the scale of the number. If not a number, this key is ignored. Default is `0`.
 * hash: bool -> Flag if this should be included in the hash of the row. If `False`, the column will not be included in the hash. If not present, the column will be included in the hash. Default/Ommitted is `True`
+* identity: bool -> Flag if this column is an identity column. If `True`, the column will be set to `IDENTITY(1,1)`. If not present, the column will not be an identity column. Default/Ommitted is `False`. When using an identity the column may or may not appear in the data. If it does, it will be ignored. Should be an INT type.
 
 ```python
 # example

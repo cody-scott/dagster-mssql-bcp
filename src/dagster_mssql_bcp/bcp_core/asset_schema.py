@@ -117,7 +117,7 @@ class AssetSchema:
         results = [
             self._resolve_name(column)
             for column in self.schema
-            if column.get("hash", True) is True
+            if column.get("hash", True) is True and column.get('identity', False) is False
         ]
         return results
 

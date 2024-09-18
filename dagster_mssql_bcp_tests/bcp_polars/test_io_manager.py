@@ -209,7 +209,7 @@ class TestPolarsBCPIO:
         # original structure
         data = pl.DataFrame(
             {
-                "a": [1, 1],
+                # "a": [1, 1],
                 "b": ["2021-01-01", "2021-01-01"],
             }
         )
