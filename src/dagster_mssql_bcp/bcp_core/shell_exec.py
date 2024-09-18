@@ -78,7 +78,8 @@ def execute_script_file(
         if output_logging == "NONE":
             stdout_pipe = stderr_pipe = None
 
-        shell_type = "cmd" if sys.platform == "win32" else "bash"
+        is_win = True if sys.platform == "win32" else False
+        shell_type = "cmd" if is_win else "bash"
 
         sub_process = Popen(
             [shell_type, shell_script_path],
@@ -86,7 +87,7 @@ def execute_script_file(
             stderr=stderr_pipe,
             cwd=cwd,
             env=env,
-            preexec_fn=pre_exec,  # noqa: PLW1509
+            preexec_fn=None if is_win else pre_exec,  # noqa: PLW1509
             encoding="UTF-8",
         )
 
