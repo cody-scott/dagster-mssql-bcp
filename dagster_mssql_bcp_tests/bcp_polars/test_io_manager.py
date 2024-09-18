@@ -146,7 +146,7 @@ class TestPolarsBCPIO:
                     f"""
                 SELECT
                     b,
-                    load_timestamp,
+                    load_datetime,
                     a,
                     c,
                     z,

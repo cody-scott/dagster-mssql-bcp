@@ -40,13 +40,17 @@ class BCPCore(ABC):
     query_props: dict[str, str]
 
     add_row_hash: bool
-    add_load_timestamp: bool
+    add_load_datetime: bool
     add_load_uuid: bool
 
     bcp_path: str | None
 
     process_datetime: bool
     process_replacements: bool
+
+    row_hash_column_name: str
+    load_uuid_column_name: str
+    load_datetime_column_name: str
 
     _new_line_character: str = "__NEWLINE__"
     _tab_character: str = "__TAB__"
@@ -62,11 +66,14 @@ class BCPCore(ABC):
         driver: str = "ODBC Driver 18 for SQL Server",
         query_props: dict[str, str] = {},
         add_row_hash: bool = True,
-        add_load_timestamp: bool = True,
+        add_load_datetime: bool = True,
         add_load_uuid: bool = True,
         bcp_path: str | None = None,
         process_datetime: bool = True,
         process_replacements: bool = True,
+        row_hash_column_name: str = "row_hash",
+        load_uuid_column_name: str = "load_uuid",
+        load_datetime_column_name: str = "load_datetime",
     ):
         """
         Initialize the BCP core configuration.
@@ -81,7 +88,7 @@ class BCPCore(ABC):
             driver (str, optional): The ODBC driver to use. Defaults to "ODBC Driver 18 for SQL Server".
             query_props (dict[str, str], optional): Properties for the query dict. Defaults to {}.
             add_row_hash (bool, optional): Whether to add a row hash. Defaults to True.
-            add_load_timestamp (bool, optional): Whether to add a load timestamp. Defaults to True.
+            add_load_datetime (bool, optional): Whether to add a load timestamp. Defaults to True.
             add_load_uuid (bool, optional): Whether to add a load UUID. Defaults to True.
             bcp_path (str | None, optional): The path to the BCP executable. Defaults to None.
             process_datetime (bool, optional): Whether to process datetime fields. Defaults to True.
@@ -94,7 +101,7 @@ class BCPCore(ABC):
         self.password = password
 
         self.add_row_hash = add_row_hash
-        self.add_load_timestamp = add_load_timestamp
+        self.add_load_datetime = add_load_datetime
         self.add_load_uuid = add_load_uuid
 
         self.driver = driver
@@ -110,6 +117,10 @@ class BCPCore(ABC):
             self.bcp_path = self.bcp_path
         else:
             self.bcp_path = "bcp"
+
+        self.row_hash_column_name = row_hash_column_name
+        self.load_uuid_column_name = load_uuid_column_name
+        self.load_datetime_column_name = load_datetime_column_name
 
     @property
     def connection_config(self):
@@ -146,7 +157,7 @@ class BCPCore(ABC):
         table: str,
         asset_schema: list[dict] | AssetSchema | None = None,
         add_row_hash: bool = True,
-        add_load_timestamp: bool = True,
+        add_load_datetime: bool = True,
         add_load_uuid: bool = True,
         uuid: str | None = None,
         process_datetime: bool | None = None,
@@ -160,7 +171,7 @@ class BCPCore(ABC):
             table (str): The table name where data will be loaded.
             asset_schema (list[dict] | AssetSchema | None, optional): Schema definition for the asset. Defaults to None.
             add_row_hash (bool, optional): Whether to add a row hash column. Defaults to True.
-            add_load_timestamp (bool, optional): Whether to add a load timestamp column. Defaults to True.
+            add_load_datetime (bool, optional): Whether to add a load timestamp column. Defaults to True.
             add_load_uuid (bool, optional): Whether to add a load UUID column. Defaults to True.
             uuid (str | None, optional): UUID for the load operation. If None, a new UUID will be generated. Defaults to None.
             process_datetime (bool | None, optional): Whether to process datetime columns. Defaults to None.
@@ -188,7 +199,7 @@ class BCPCore(ABC):
         staging_table = f"{table}_staging_{uuid_table}"
 
         self._add_meta_to_asset_schema(
-            asset_schema, add_row_hash, add_load_timestamp, add_load_uuid
+            asset_schema, add_row_hash, add_load_datetime, add_load_uuid
         )
 
         schema_deltas = {}
@@ -198,7 +209,7 @@ class BCPCore(ABC):
                 data,
                 uuid_value=uuid,
                 add_hash=add_row_hash,
-                add_datetime=add_load_timestamp,
+                add_datetime=add_load_datetime,
                 add_uuid=add_load_uuid,
             )
 
@@ -306,14 +317,18 @@ class BCPCore(ABC):
                     connection=connection,
                     schema=schema,
                     table=table,
-                    exclude_columns=["load_uuid", "load_timestamp", "row_hash"],
+                    exclude_columns=[
+                        self.row_hash_column_name,
+                        self.load_uuid_column_name, 
+                        self.load_datetime_column_name, 
+                    ],
                 )
         elif isinstance(asset_schema, list):
             asset_schema = AssetSchema(asset_schema)
         return asset_schema
 
     def _add_meta_to_asset_schema(
-        self, asset_schema, add_row_hash, add_load_timestamp, add_load_uuid
+        self, asset_schema, add_row_hash, add_load_datetime, add_load_uuid
     ) -> AssetSchema:
         """
         Adds metadata columns to the asset schema if specified.
@@ -323,36 +338,36 @@ class BCPCore(ABC):
         Args:
             asset_schema (AssetSchema): The schema to which metadata columns will be added.
             add_row_hash (bool): Flag indicating whether to add the row hash column.
-            add_load_timestamp (bool): Flag indicating whether to add the load timestamp column.
+            add_load_datetime (bool): Flag indicating whether to add the load timestamp column.
             add_load_uuid (bool): Flag indicating whether to add the load UUID column.
         Returns:
             AssetSchema: The updated asset schema with the added metadata columns.
         """
         schema_columns = asset_schema.get_columns()
-        if add_row_hash and "row_hash" not in schema_columns:
+        if add_row_hash and self.row_hash_column_name not in schema_columns:
             asset_schema.add_column(
                 {
-                    "name": "row_hash",
+                    "name": self.row_hash_column_name,
                     "type": "NVARCHAR",
                     "length": 200,
                     "hash": False,
                 }
             )
 
-        if add_load_uuid and "load_uuid" not in schema_columns:
+        if add_load_uuid and self.load_uuid_column_name not in schema_columns:
             asset_schema.add_column(
                 {
-                    "name": "load_uuid",
+                    "name": self.load_uuid_column_name,
                     "type": "NVARCHAR",
                     "length": 200,
                     "hash": False,
                 }
             )
 
-        if add_load_timestamp and "load_timestamp" not in schema_columns:
+        if add_load_datetime and self.load_uuid_column_name not in schema_columns:
             asset_schema.add_column(
                 {
-                    "name": "load_timestamp",
+                    "name": self.load_datetime_column_name,
                     "type": "DATETIME2",
                     "hash": False,
                 }
@@ -873,7 +888,7 @@ class BCPCore(ABC):
 
         update_sql = f"""
         UPDATE {schema}.{table}
-        SET row_hash = {hash_sql}
+        SET {self.row_hash_column_name} = {hash_sql}
         """
 
         connection.execute(text(update_sql))

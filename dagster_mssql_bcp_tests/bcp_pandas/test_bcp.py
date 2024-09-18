@@ -155,7 +155,7 @@ class TestPandasBCP:
             "c",
             "row_hash",
             "load_uuid",
-            "load_timestamp",
+            "load_datetime",
         ]
 
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})
@@ -168,7 +168,7 @@ class TestPandasBCP:
             "c",
             "row_hash",
             "load_uuid",
-            "load_timestamp",
+            "load_datetime",
         ]
 
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})

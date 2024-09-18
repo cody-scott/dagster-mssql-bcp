@@ -25,7 +25,7 @@ class PandasBCPIOManager(BCPIOManagerCore):
             bcp_arguments=self.bcp_arguments,
             query_props=self.query_props,
             add_row_hash=self.add_row_hash,
-            add_load_timestamp=self.add_load_timestamp,
+            add_load_datetime=self.add_load_datetime,
             add_load_uuid=self.add_load_uuid,
             bcp_path=self.bcp_path,
         )

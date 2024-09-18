@@ -23,13 +23,13 @@ class PandasBCP(BCPCore):
         add_datetime: bool = True,
     ):
         if add_hash:
-            data["row_hash"] = None
+            data[self.row_hash_column_name] = None
 
         if add_uuid:
-            data["load_uuid"] = uuid_value
+            data[self.load_uuid_column_name] = uuid_value
 
         if add_datetime:
-            data["load_timestamp"] = (
+            data[self.load_datetime_column_name] = (
                 pendulum.now()
                 .to_iso8601_string()
                 .replace("T", " ")

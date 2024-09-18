@@ -17,7 +17,7 @@ class BCPIOManagerCore(ConfigurableIOManager):
     query_props: dict[str, str] = {}
 
     add_row_hash: bool = True
-    add_load_timestamp: bool = True
+    add_load_datetime: bool = True
     add_load_uuid: bool = True
 
     bcp_arguments: dict[str, str] = {}
@@ -43,7 +43,7 @@ class BCPIOManagerCore(ConfigurableIOManager):
             bcp_arguments=self.bcp_arguments,
             query_props=self.query_props,
             add_row_hash=self.add_row_hash,
-            add_load_timestamp=self.add_load_timestamp,
+            add_load_datetime=self.add_load_datetime,
             add_load_uuid=self.add_load_uuid,
             bcp_path=self.bcp_path,
         )
@@ -63,7 +63,7 @@ class BCPIOManagerCore(ConfigurableIOManager):
         asset_schema = AssetSchema(asset_schema)
 
         add_row_hash = metadata.get("add_hash", True)
-        add_load_timestamp = metadata.get("add_timestamp", True)
+        add_load_datetime = metadata.get("add_timestamp", True)
         add_load_uuid = metadata.get("add_uuid", True)
         process_datetime = metadata.get("process_datetime", self.process_datetime)
         process_replacements = metadata.get("process_replacements", self.process_replacements)
@@ -75,7 +75,7 @@ class BCPIOManagerCore(ConfigurableIOManager):
         asset_schema = bcp_manager._add_meta_to_asset_schema(
             asset_schema,
             add_row_hash=add_row_hash,
-            add_load_timestamp=add_load_timestamp,
+            add_load_datetime=add_load_datetime,
             add_load_uuid=add_load_uuid,
         )
 
@@ -110,7 +110,7 @@ class BCPIOManagerCore(ConfigurableIOManager):
             table=io_table,
             asset_schema=asset_schema,
             add_row_hash=add_row_hash,
-            add_load_timestamp=add_load_timestamp,
+            add_load_datetime=add_load_datetime,
             add_load_uuid=add_load_uuid,
             uuid=uuid,
             process_datetime=process_datetime,

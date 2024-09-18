@@ -28,9 +28,9 @@ class PolarsBCP(BCPCore):
         """
         columns_to_add = []
         if add_hash:
-            columns_to_add.append(pl.lit(None).alias("row_hash"))
+            columns_to_add.append(pl.lit(None).alias(self.row_hash_column_name))
         if add_uuid:
-            columns_to_add.append(pl.lit(uuid_value).alias("load_uuid"))
+            columns_to_add.append(pl.lit(uuid_value).alias(self.load_uuid_column_name))
         if add_datetime:
             columns_to_add.append(
                 pl.lit(
@@ -38,7 +38,7 @@ class PolarsBCP(BCPCore):
                     .to_iso8601_string()
                     .replace("T", " ")
                     .replace("Z", "+00:00")
-                ).alias("load_timestamp")
+                ).alias(self.load_datetime_column_name)
             )
 
         return data.with_columns(columns_to_add)
