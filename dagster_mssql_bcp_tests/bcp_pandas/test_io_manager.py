@@ -1,10 +1,15 @@
-
 from dagster_mssql_bcp.bcp_pandas import pandas_mssql_io_manager
 import os
 
 from contextlib import contextmanager
 from sqlalchemy import create_engine, URL, text
-from dagster import build_output_context, asset, DailyPartitionsDefinition, StaticPartitionsDefinition, materialize
+from dagster import (
+    build_output_context,
+    asset,
+    DailyPartitionsDefinition,
+    StaticPartitionsDefinition,
+    materialize,
+)
 import pandas as pd
 
 
@@ -50,9 +55,7 @@ class TestPandasBCPIO:
             query_props={
                 "TrustServerCertificate": "yes",
             },
-            bcp_arguments={
-                '-u': ''
-            },
+            bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
 
@@ -174,8 +177,8 @@ class TestPandasBCPIO:
             io_manager.handle_output(ctx, data)
 
     def test_handle_output_time_partition(self):
-        schema = 'test_pandas_bcp_schema'
-        table = 'my_pandas_asset_time_part'
+        schema = "test_pandas_bcp_schema"
+        table = "my_pandas_asset_time_part"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         with self.connect_mssql() as connection:
@@ -190,20 +193,20 @@ class TestPandasBCPIO:
 
         @asset(
             name=table,
-            key_prefix=['data'],
+            key_prefix=["data"],
             metadata={
                 "asset_schema": asset_schema,
                 "schema": schema,
-                "partition_expr": 'b'
+                "partition_expr": "b",
             },
             partitions_def=DailyPartitionsDefinition(
                 start_date="2021-01-01", end_date="2021-01-03"
-            )
+            ),
         )
         def my_asset(context):
             return data
-        
-         # original structure
+
+        # original structure
         data = pd.DataFrame(
             {
                 "a": [1, 1],
@@ -231,7 +234,7 @@ class TestPandasBCPIO:
         data = pd.DataFrame(
             {
                 "a": [2, 2, 2],
-                "b": ["2021-01-01", "2021-01-01", '2021-01-02'],
+                "b": ["2021-01-01", "2021-01-01", "2021-01-02"],
             }
         )
         materialize(
@@ -241,8 +244,8 @@ class TestPandasBCPIO:
         )
 
     def test_handle_output_static_partition(self):
-        schema = 'test_pandas_bcp_schema'
-        table = 'my_pandas_asset_static_part'
+        schema = "test_pandas_bcp_schema"
+        table = "my_pandas_asset_static_part"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         with self.connect_mssql() as connection:
@@ -257,20 +260,19 @@ class TestPandasBCPIO:
 
         @asset(
             name=table,
-            key_prefix=['data'],
+            key_prefix=["data"],
             metadata={
                 "asset_schema": asset_schema,
                 "schema": schema,
-                "partition_expr": 'b'
+                "partition_expr": "b",
             },
-            partitions_def=StaticPartitionsDefinition(
-                ['a', 'b']
-            )
+            partitions_def=StaticPartitionsDefinition(["a", "b"]),
         )
         def my_asset(context):
             return data
-        
-                # original structure
+
+            # original structure
+
         data = pd.DataFrame(
             {
                 "a": [1, 1],
@@ -297,7 +299,7 @@ class TestPandasBCPIO:
         data = pd.DataFrame(
             {
                 "a": [1, 1, 2],
-                "b": ["a", "a", 'a'],
+                "b": ["a", "a", "a"],
             }
         )
         materialize(
@@ -306,11 +308,9 @@ class TestPandasBCPIO:
             resources={"io_manager": io_manager},
         )
 
-
     def test_basic_no_extras(self):
-
-        schema = 'test_pandas_bcp_schema'
-        table = 'basic_no_extra'
+        schema = "test_pandas_bcp_schema"
+        table = "basic_no_extra"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         with self.connect_mssql() as connection:
@@ -327,15 +327,16 @@ class TestPandasBCPIO:
             name=table,
             metadata={
                 "asset_schema": asset_schema,
-                'add_row_hash': False,
-                'add_load_datetime': False,
-                'add_load_uuid': False
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
             },
         )
         def my_asset(context):
             return data
-        
-                # original structure
+
+            # original structure
+
         data = pd.DataFrame(
             {
                 "a": [1, 1],
@@ -348,9 +349,8 @@ class TestPandasBCPIO:
         )
 
     # def test_geo(self):
-
-    #     schema = 'dbo'
-    #     table = 'geo_table'
+    #     schema = "dbo"
+    #     table = "geo_table"
     #     drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
     #     with self.connect_mssql() as connection:
@@ -361,34 +361,59 @@ class TestPandasBCPIO:
     #     asset_schema = [
     #         {"name": "a", "alias": "a", "type": "INT", "identity": True},
     #         {"name": "b", "type": "VARBINARY"},
+    #         {"name": "c", "type": "VARBINARY"},
     #     ]
 
     #     @asset(
     #         name=table,
     #         metadata={
     #             "asset_schema": asset_schema,
-    #             'add_row_hash': False,
-    #             'add_load_datetime': False,
-    #             'add_load_uuid': False
+    #             "add_row_hash": False,
+    #             "add_load_datetime": False,
+    #             "add_load_uuid": False,
     #         },
     #     )
     #     def my_asset(context):
     #         import geopandas as gpd
-    #         from shapely.geometry import Point
-    #         d = {'geo': ['name1', 'name2'], 'geometry': [Point(1, 2), Point(2, 1)]}
-    #         gdf = gpd.GeoDataFrame(d, crs="EPSG:4326")
-    #         gdf['b'] = gdf['geometry'].to_wkb(True)
+    #         from shapely.geometry import LineString, Polygon
+
+    #         d = {
+    #             "geo": ["name1"],
+    #             "b": [
+    #                 Polygon(
+    #                     [
+    #                         [-80.54962058626626, 43.45142912346685],
+    #                         [-80.54962058626626, 43.39711241629678],
+    #                         [-80.41053208968418, 43.39711241629678],
+    #                         [-80.41053208968418, 43.45142912346685],
+    #                         [-80.54962058626626, 43.45142912346685],
+    #                     ]
+    #                 )
+    #             ],
+    #             "c": [
+    #                 LineString(
+    #                     [
+    #                         [-80.62480125364407, 43.42751074871268],
+    #                         [-80.61613488881885, 43.47504704269912],
+    #                         [-80.48882864676696, 43.518998328579784],
+    #                         [-80.39489789141057, 43.48407197511389],
+    #                     ]
+    #                 ),
+    #             ],
+    #         }
+    #         gdf = gpd.GeoDataFrame(d)
+    #         gdf["b"] = gdf.set_geometry('b').to_wkb(True)['b']
+    #         gdf["c"] = gdf.set_geometry('c').to_wkb(True)['c']
     #         return gdf
-            
-    #     @asset(
-    #             deps=[my_asset]
-    #     )
+
+    #     @asset(deps=[my_asset])
     #     def convert_geo(context):
     #         with self.connect_mssql() as conn:
-    #             sql = f'SELECT b, geography::STGeomFromWKB(b, 4326) FROM {schema}.{table}'
+    #             sql = (
+    #                 f"SELECT b, geography::STGeomFromWKB(b, 4326) FROM {schema}.{table}"
+    #             )
     #             print(sql)
     #             conn.exec_driver_sql(sql)
-
 
     #     materialize(
     #         assets=[my_asset, convert_geo],

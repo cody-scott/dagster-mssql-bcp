@@ -77,10 +77,10 @@ defs = Definitions(
 
 ```python
 from dagster import asset, Definitions
-from dagster_mssql_bcp import PolarsBCPIOManager
+from dagster_mssql_bcp import PandasBCPIOManager
 import pandas as pd
 
-io_manager = PolarsBCPIOManager(
+io_manager = PandasBCPIOManager(
     host="my_mssql_server",
     database="my_database",
     user="username",
@@ -101,11 +101,11 @@ io_manager = PolarsBCPIOManager(
     }
 )
 def my_polars_asset(context):
-    return pl.DataFrame({"id": [1, 2, 3]})
+    return pd.DataFrame({"id": [1, 2, 3]})
 
 
 defs = Definitions(
-    assets=[my_polars_asset],
+    assets=[my_pandas_asset],
     io_managers={
         "io_manager": io_manager,
     },

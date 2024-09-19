@@ -16,6 +16,7 @@ from .asset_schema import AssetSchema
 from .bcp_logger import BCPLogger
 from .mssql_connection import connect_mssql
 
+
 class BCPCore(ABC):
     """
     Generalizes the process of loading data into a SQL Server database using BCP.
@@ -213,11 +214,22 @@ class BCPCore(ABC):
                 process_replacements,
             )
 
-            self._create_target_tables(data, schema, table, asset_schema, staging_table, connection)
+            self._create_target_tables(
+                data, schema, table, asset_schema, staging_table, connection
+            )
 
         self._bcp_stage(data, schema, table, staging_table)
 
-        new_line_count = self._post_bcp_stage(data, schema, table, asset_schema, add_row_hash, process_replacements, connection_config_dict, staging_table)
+        new_line_count = self._post_bcp_stage(
+            data,
+            schema,
+            table,
+            asset_schema,
+            add_row_hash,
+            process_replacements,
+            connection_config_dict,
+            staging_table,
+        )
 
         return {
             "uuid": uuid,
@@ -225,14 +237,24 @@ class BCPCore(ABC):
             "schema_deltas": schema_deltas,
         }
 
-    def _post_bcp_stage(self, data, schema, table, asset_schema, add_row_hash, process_replacements, connection_config_dict, staging_table):
+    def _post_bcp_stage(
+        self,
+        data,
+        schema,
+        table,
+        asset_schema,
+        add_row_hash,
+        process_replacements,
+        connection_config_dict,
+        staging_table,
+    ):
         with connect_mssql(connection_config_dict) as con:
             # Validate loads (counts of tables match)
             new_line_count = self._validate_bcp_load(
                 con, schema, staging_table, len(data)
             )
 
-            if not process_replacements:
+            if process_replacements:
                 self._replace_temporary_tab_newline(
                     con, schema, staging_table, asset_schema
                 )
@@ -245,7 +267,7 @@ class BCPCore(ABC):
                 self._calculate_row_hash(
                     con, schema, table, asset_schema.get_hash_columns()
                 )
-                
+
         return new_line_count
 
     def _bcp_stage(self, data, schema, table, staging_table):
@@ -264,29 +286,29 @@ class BCPCore(ABC):
                 error_file,
             )
 
-    def _create_target_tables(self, data, schema, table, asset_schema, staging_table, connection):
+    def _create_target_tables(
+        self, data, schema, table, asset_schema, staging_table, connection
+    ):
         data_columns_str = ",".join(self._get_frame_columns(data))
 
         self._create_schema(connection, schema)
         self._create_table(
-                connection,
-                schema,
-                table,
-                asset_schema,
-            )
+            connection,
+            schema,
+            table,
+            asset_schema,
+        )
+        connection.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"'))
         connection.execute(
-                text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"')
-            )
-        connection.execute(
-                text(
-                    f"""
+            text(
+                f"""
                         SELECT {data_columns_str}
                         INTO {schema}.{staging_table}
                         FROM {schema}.{table}
                         WHERE 1=0
                     """
-                )
             )
+        )
 
     def _pre_bcp_stage(
         self,
@@ -786,33 +808,6 @@ class BCPCore(ABC):
 
             get_dagster_logger().error(f"BCP error: {error_message}")
             raise ae
-
-    # def _run_bcp(self, cmd: str, logger: BCPLogger):
-    #     if IS_WIN32:
-    #         with_shell = False
-    #     else:
-    #         with_shell = True
-    #         cmd = " ".join(cmd).replace("\\", "\\\\")  # type: ignore
-    #     proc = Popen(
-    #         cmd,
-    #         stdout=PIPE,
-    #         stderr=STDOUT,
-    #         encoding="utf-8",
-    #         errors="utf-8",
-    #         shell=with_shell,
-    #     )
-    #     stdout = []
-    #     # live stream STDOUT and STDERR
-    #     while True:
-    #         outs = proc.stdout.readline()  # type: ignore[union-attr]
-    #         if outs:
-    #             if print_output:
-    #                 print(outs, end="")
-    #             logger.info(outs)
-    #             stdout.append(outs)
-    #         if proc.poll() is not None and outs == "":
-    #             break
-    #     return proc.returncode, stdout
 
     # endregion
 
