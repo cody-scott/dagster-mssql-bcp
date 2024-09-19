@@ -164,9 +164,9 @@ class TestAssetSchema:
     def test_rename_columns(self):
         schema = asset_schema.AssetSchema(
             [
-                {"name": "a", "alias": "b"},
-                {"name": "c", "alias": "d"},
-                {"name": "e"},
+                {"name": "a", "alias": "b", "type": "NVARCHAR"},
+                {"name": "c", "alias": "d", "type": "NVARCHAR"},
+                {"name": "e", "type": "NVARCHAR"},
             ]
         )
         result = schema.get_rename_dict()
@@ -312,3 +312,39 @@ class TestAssetSchema:
         )
 
         assert schema.get_identity_columns() == ["b"]
+
+    def test_validate_schema(self):
+        good = [
+            {"name": "a", "type": "BIGINT"},
+            {"name": "b", "type": "BIGINT", "identity": True},
+        ]
+        asset_schema.AssetSchema(good)
+
+        duplicate_columns = [
+            {"name": "a", "type": "BIGINT"},
+            {"name": "a", "type": "BIGINT"},
+        ]
+        with pytest.raises(ValueError) as ae:
+            asset_schema.AssetSchema(duplicate_columns)
+        assert "Duplicate column name: a" in str(ae.value)
+
+        missing_name = [
+            {"type": "BIGINT"},
+        ]
+        with pytest.raises(ValueError) as ae:
+            asset_schema.AssetSchema(missing_name)
+        assert "Column name not provided for column: {'type': 'BIGINT'}" in str(ae.value)
+
+        missing_type = [
+            {"name": "a"},
+        ]
+        with pytest.raises(ValueError) as ae:
+            asset_schema.AssetSchema(missing_type)
+        assert "Column type not provided for column: a" in str(ae.value)
+
+        invalid_type = [
+            {"name": "a", "type": "INVALID"},
+        ]
+        with pytest.raises(ValueError) as ae:
+            asset_schema.AssetSchema(invalid_type)
+        assert "Invalid data type: INVALID" in str(ae.value)

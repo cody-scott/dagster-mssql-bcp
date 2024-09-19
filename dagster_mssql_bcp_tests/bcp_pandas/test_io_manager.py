@@ -346,3 +346,51 @@ class TestPandasBCPIO:
             assets=[my_asset],
             resources={"io_manager": io_manager},
         )
+
+    # def test_geo(self):
+
+    #     schema = 'dbo'
+    #     table = 'geo_table'
+    #     drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+    #     with self.connect_mssql() as connection:
+    #         connection.execute(text(drop))
+
+    #     io_manager = self.io()
+
+    #     asset_schema = [
+    #         {"name": "a", "alias": "a", "type": "INT", "identity": True},
+    #         {"name": "b", "type": "VARBINARY"},
+    #     ]
+
+    #     @asset(
+    #         name=table,
+    #         metadata={
+    #             "asset_schema": asset_schema,
+    #             'add_row_hash': False,
+    #             'add_load_datetime': False,
+    #             'add_load_uuid': False
+    #         },
+    #     )
+    #     def my_asset(context):
+    #         import geopandas as gpd
+    #         from shapely.geometry import Point
+    #         d = {'geo': ['name1', 'name2'], 'geometry': [Point(1, 2), Point(2, 1)]}
+    #         gdf = gpd.GeoDataFrame(d, crs="EPSG:4326")
+    #         gdf['b'] = gdf['geometry'].to_wkb(True)
+    #         return gdf
+            
+    #     @asset(
+    #             deps=[my_asset]
+    #     )
+    #     def convert_geo(context):
+    #         with self.connect_mssql() as conn:
+    #             sql = f'SELECT b, geography::STGeomFromWKB(b, 4326) FROM {schema}.{table}'
+    #             print(sql)
+    #             conn.exec_driver_sql(sql)
+
+
+    #     materialize(
+    #         assets=[my_asset, convert_geo],
+    #         resources={"io_manager": io_manager},
+    #     )

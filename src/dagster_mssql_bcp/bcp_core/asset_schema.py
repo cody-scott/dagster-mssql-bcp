@@ -62,6 +62,7 @@ class AssetSchema:
     decimal_column_types = ["NUMERIC", "DECIMAL"]
     money_column_types = ["MONEY"]
     xml_column_types = ["XML"]
+    binary_column_types = ['BINARY', 'VARBINARY']
 
     number_column_types = (
         int_column_types
@@ -79,10 +80,12 @@ class AssetSchema:
         + decimal_column_types
         + money_column_types
         + xml_column_types
+        + binary_column_types
     )
 
     def __init__(self, schema: list[dict]):
         self.schema = schema
+        self.validate_asset_schema()
 
     def __eq__(self, value: "AssetSchema") -> bool:
         for _ in self.schema:
@@ -93,6 +96,27 @@ class AssetSchema:
             if _ not in self.schema:
                 return False
         return True
+
+    def validate_asset_schema(self):
+        columns = {}
+        for column in self.schema:
+            column_name = column.get("name")
+            if column_name is None:
+                raise ValueError(f"Column name not provided for column: {column}")
+            
+            column_counter = columns.get(column["name"], 0)
+            if column_counter > 0:
+                raise ValueError(f"Duplicate column name: {column['name']}")
+            
+            columns[column_name] = 1
+
+            column_type = column.get("type", None)
+            if column_type is None:
+                raise ValueError(f"Column type not provided for column: {column['name']}")
+            
+            
+            if column_type not in self.allowed_types:
+                raise ValueError(f"Invalid data type: {column['type']}")
 
     @staticmethod
     def _resolve_name(column: dict):
@@ -158,7 +182,6 @@ class AssetSchema:
             if column.get("identity", False) is True
         ]
 
-    def validate_asset_schema(self): ...
 
     def get_sql_columns(self) -> list[str]:
         columns = []
@@ -172,7 +195,7 @@ class AssetSchema:
             if data_type not in self.allowed_types:
                 raise ValueError(f"Invalid data type: {data_type}")
 
-            if data_type in self.text_column_types:
+            if data_type in (self.text_column_types + self.binary_column_types):
                 length = data.get("length", "MAX")
                 to_add = f"{column_name} {data_type}({length})"
             elif data_type in self.decimal_column_types:
@@ -235,6 +258,11 @@ class AssetSchema:
                     base_result["precision"] = precision
                 if scale is not None:
                     base_result["scale"] = scale
+            elif data_type in AssetSchema.binary_column_types:
+                if str_length is not None:
+                    base_result["length"] = str_length
+                else:
+                    base_result["length"] = 'MAX'
 
             result_schema.append(base_result)
 
