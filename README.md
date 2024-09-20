@@ -3,7 +3,7 @@
 ![Unit tests](https://github.com/cody-scott/dagster-mssql-bcp/actions/workflows/python-test.yml/badge.svg)
 
 
-ODBC is slow 🐢; bcp is fast! 🐰
+ODBC is slow 🐢 bcp is fast! 🐰
 
 This is a customer dagster IO manager for loading data into SQL Server using the `bcp` utility.
 
