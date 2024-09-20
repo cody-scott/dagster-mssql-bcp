@@ -6,7 +6,7 @@ i=0
 
 while [[ $DBSTATUS -ne 0 ]] && [[ $i -lt 60 ]] && [[ $ERRCODE -ne 0 ]]; do
 	i=$i+1
-	DBSTATUS=$(/opt/mssql-tools18/bin/sqlcmd -C -S dagster_sql_server_bcp,1433 -U sa -P yourStrong_Password -Q "SET NOCOUNT ON; Select SUM(state) from sys.databases")
+	DBSTATUS=$(/opt/mssql-tools18/bin/sqlcmd -C -S $TARGET_DB__HOST,$TARGET_DB__PORT -U $TARGET_DB__USERNAME -P $TARGET_DB__PASSWORD -Q "SET NOCOUNT ON; Select SUM(state) from sys.databases")
 	ERRCODE=$?
 	sleep 1
 done
@@ -18,4 +18,4 @@ fi
 
 echo "Database is up and running"
 
-/opt/mssql-tools18/bin/sqlcmd -C -S dagster_sql_server_bcp,1433 -U sa -P yourStrong_Password -Q "CREATE DATABASE dagster_bcp"
+/opt/mssql-tools18/bin/sqlcmd -C -S $TARGET_DB__HOST,$TARGET_DB__PORT -U $TARGET_DB__USERNAME -P $TARGET_DB__PASSWORD -Q "CREATE DATABASE $TARGET_DB__DATABASE"

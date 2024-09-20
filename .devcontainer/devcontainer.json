@@ -14,7 +14,7 @@
 	"containerEnv": {
 		"TARGET_DB__HOST": "dagster_sql_server_bcp",
 		"TARGET_DB__PORT":"1433",
-		"TARGET_DB__DATABASE":"dagster_bcp",
+		"TARGET_DB__DATABASE":"dagster_bcps",
 		"TARGET_DB__USERNAME":"sa",
 		"TARGET_DB__PASSWORD":"yourStrong_Password"
 	},
