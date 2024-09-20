@@ -1,5 +1,8 @@
 # /bin/bash
 
+sudo apt-get update
+sudo apt-get -f install
+
 # Install SQL Server Drivers/SQLCMD
 echo "Installing MSSQL"
 curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
