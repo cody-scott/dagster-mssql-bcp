@@ -5,7 +5,7 @@
 
 ODBC is slow 🐢 bcp is fast! 🐰
 
-This is a customer dagster IO manager for loading data into SQL Server using the `bcp` utility.
+This is a custom dagster IO manager for loading data into SQL Server using the `bcp` utility.
 
 ## What you need to run it
 
