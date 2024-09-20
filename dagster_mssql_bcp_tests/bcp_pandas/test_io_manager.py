@@ -348,6 +348,53 @@ class TestPandasBCPIO:
             resources={"io_manager": io_manager},
         )
 
+    def test_basic_replacements(self):
+        schema = "test_pandas_bcp_schema"
+        table = "test_basic_replacements"
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        asset_schema = [
+            {"name": "a", "alias": "a", "type": "INT"},
+            {"name": "b", "type": "NVARCHAR", "length": 100},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
+            },
+        )
+        def my_asset(context):
+            return data
+
+            # original structure
+
+        data = pd.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["a\t\nb", "a\t\tb"],
+            }
+        )
+
+
+        io_manager = self.io()
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+        with self.connect_mssql() as connection:
+            data = connection.exec_driver_sql(f'SELECT * FROM {schema}.{table}')
+            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb')]
+
+        
+        
     # def test_geo(self):
     #     schema = "dbo"
     #     table = "geo_table"

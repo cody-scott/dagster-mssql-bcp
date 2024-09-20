@@ -71,7 +71,8 @@ class BCPIOManagerCore(ConfigurableIOManager):
         table = metadata.get("table", table)
 
         asset_schema = metadata.get("asset_schema")
-        assert asset_schema is not None, "No data table provided in metadata"
+        if asset_schema is None:
+            raise ValueError("No data table provided in metadata")
         asset_schema = AssetSchema(asset_schema)
 
         add_row_hash = metadata.get("add_row_hash", True)

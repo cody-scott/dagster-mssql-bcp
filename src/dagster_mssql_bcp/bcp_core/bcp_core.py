@@ -829,7 +829,7 @@ class BCPCore(ABC):
         Returns:
             int: The actual number of rows in the table.
         Raises:
-            AssertionError: If the validation fails or no result is returned from the query.
+            ValueError: If the validation fails or no result is returned from the query.
         """
         get_dagster_logger().debug("Validating BCP load")
         validate_load_sql = f"SELECT COUNT(*) FROM {schema}.{bcp_table}"
@@ -837,8 +837,10 @@ class BCPCore(ABC):
             text(validate_load_sql.format(schema=schema, table=bcp_table))
         )
         result = cursor.fetchone()
-        assert result is not None, "No result from validation"
-        assert result[0] == row_count, "Validation failed"
+        if result is None:
+            raise ValueError("No result from validation")
+        if result[0] != row_count:
+            raise ValueError("Validation failed")
         return result[0]
 
     def _replace_temporary_tab_newline(
