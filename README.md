@@ -16,7 +16,7 @@ The `bcp` utility must be installed on the machine that is running the dagster p
 
 See [Microsoft's documentation](https://learn.microsoft.com/en-us/sql/tools/bcp-utility?view=sql-server-ver16&tabs=windows) for more information.
 
-Ideally you should place this on the path, but you can specify in the IO configuration where it is located.
+Ideally you should place this on your `PATH`, but you can specify in the IO configuration where it is located.
 
 ### ODBC Drivers
 
@@ -29,7 +29,7 @@ See [Microsoft's documentation](https://learn.microsoft.com/en-us/sql/connect/od
 The user running the dagster pipeline must have the necessary permissions to load data into the SQL Server database. 
 
 * `CREATE SCHEMA`
-* `CREATE TABLES`
+* `CREATE/ALTER TABLES`
 
 ## Basic Usage
 
