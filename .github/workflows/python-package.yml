@@ -35,6 +35,13 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install drivers
       run: |
+        sudo rm -rf /var/lib/dpkg/info/*.*
+        sudo apt-get autoremove
+        sudo apt-get autoclean
+        sudo apt-get update
+        sudo apt-get check
+        sudo apt-get -f install
+        sudo apt-get upgrade
         /bin/bash .devcontainer/setup_drivers.sh
         /bin/bash .devcontainer/setup_database.sh
       env:
