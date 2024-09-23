@@ -200,6 +200,10 @@ class BCPCore(ABC):
         )
 
         with connect_mssql(connection_config_dict) as connection:
+            self._create_target_tables(
+                schema, table, asset_schema, staging_table, connection
+            )
+            
             data, schema_deltas = self._pre_bcp_stage(
                 connection,
                 data,
@@ -214,21 +218,17 @@ class BCPCore(ABC):
                 process_replacements,
             )
 
-            self._create_target_tables(
-                schema, table, asset_schema, staging_table, connection
-            )
-
-        self._bcp_stage(data, schema, table, staging_table)
+        self._bcp_stage(data, schema, staging_table)
 
         new_line_count = self._post_bcp_stage(
             data,
             schema,
             table,
+            staging_table,
             asset_schema,
             add_row_hash,
             process_replacements,
             connection_config_dict,
-            staging_table,
         )
 
         return {
@@ -236,76 +236,7 @@ class BCPCore(ABC):
             "row_count": new_line_count,
             "schema_deltas": schema_deltas,
         }
-
-    def _post_bcp_stage(
-        self,
-        data,
-        schema,
-        table,
-        asset_schema,
-        add_row_hash,
-        process_replacements,
-        connection_config_dict,
-        staging_table,
-    ):
-        with connect_mssql(connection_config_dict) as con:
-            # Validate loads (counts of tables match)
-            new_line_count = self._validate_bcp_load(
-                con, schema, staging_table, len(data)
-            )
-
-            if process_replacements:
-                self._replace_temporary_tab_newline(
-                    con, schema, staging_table, asset_schema
-                )
-
-            if add_row_hash:
-                self._calculate_row_hash(
-                    con, schema, staging_table, asset_schema.get_hash_columns()
-                )
-
-            self._insert_and_drop_bcp_table(
-                con, schema, table, staging_table, asset_schema
-            )
-
-        return new_line_count
-
-    def _bcp_stage(self, data, schema, table, staging_table):
-        with TemporaryDirectory() as temp_dir:
-            temp_dir = Path(temp_dir)
-            format_file = temp_dir / f"{table}_format_file.fmt"
-            error_file = temp_dir / f"{table}_error_file.err"
-            csv_file = self._save_csv(data, temp_dir, f"{table}.csv")
-
-            self._generate_format_file(schema, staging_table, format_file)
-            self._insert_with_bcp(
-                schema,
-                staging_table,
-                csv_file,
-                format_file,
-                error_file,
-            )
-
-    def _create_target_tables(
-        self, schema, table, asset_schema: AssetSchema, staging_table, connection
-    ):
-        self._create_schema(connection, schema)
-        self._create_table(
-            connection,
-            schema,
-            table,
-            asset_schema.get_sql_columns(),
-        )
-        connection.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"'))
-        # problem is this is creating a table with identity but we have filtered out the identity column
-        self._create_table(
-            connection,
-            schema,
-            staging_table,
-            asset_schema.get_sql_columns(),
-        )
-
-
+    
     def _pre_bcp_stage(
         self,
         connection: Connection,
@@ -331,7 +262,6 @@ class BCPCore(ABC):
             add_datetime=add_load_datetime,
             add_uuid=add_load_uuid,
         )
-
         data = self._add_identity_columns(data=data, asset_schema=asset_schema)
 
         sql_structure = self._get_sql_columns(connection, schema, table)
@@ -345,7 +275,6 @@ class BCPCore(ABC):
 
             # Filter columns that are not in the json schema (evolution)
         data = self._filter_columns(data, asset_schema.get_columns(True))
-
         sql_structure = sql_structure or frame_columns
         data = self._reorder_columns(data, sql_structure)
 
@@ -355,6 +284,55 @@ class BCPCore(ABC):
             data = self._process_datetime(data, asset_schema)
 
         return data, schema_deltas
+    
+    def _bcp_stage(self, data, schema, staging_table):
+        with TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            format_file = temp_dir / f"{staging_table}_format_file.fmt"
+            error_file = temp_dir / f"{staging_table}_error_file.err"
+            csv_file = self._save_csv(data, temp_dir, f"{staging_table}.csv")
+
+            self._generate_format_file(schema, staging_table, format_file)
+            self._insert_with_bcp(
+                schema,
+                staging_table,
+                csv_file,
+                format_file,
+                error_file,
+            )
+
+    def _post_bcp_stage(
+        self,
+        data,
+        schema,
+        table,
+        staging_table,
+        asset_schema,
+        add_row_hash,
+        process_replacements,
+        connection_config_dict,
+    ):
+        with connect_mssql(connection_config_dict) as con:
+            # Validate loads (counts of tables match)
+            new_line_count = self._validate_bcp_load(
+                con, schema, staging_table, len(data)
+            )
+
+            if process_replacements:
+                self._replace_temporary_tab_newline(
+                    con, schema, staging_table, asset_schema
+                )
+
+            if add_row_hash:
+                self._calculate_row_hash(
+                    con, schema, staging_table, asset_schema.get_hash_columns()
+                )
+
+            self._insert_and_drop_bcp_table(
+                con, schema, table, staging_table, asset_schema
+            )
+
+        return new_line_count
 
     def _parse_asset_schema(self, schema, table, asset_schema):
         """
@@ -388,6 +366,7 @@ class BCPCore(ABC):
             asset_schema = AssetSchema(asset_schema)
         return asset_schema
 
+    # region pre load
     def _add_meta_to_asset_schema(
         self, asset_schema, add_row_hash, add_load_datetime, add_load_uuid
     ) -> AssetSchema:
@@ -435,7 +414,25 @@ class BCPCore(ABC):
             )
         return asset_schema
 
-    # region pre load
+    def _create_target_tables(
+        self, schema, table, asset_schema: AssetSchema, staging_table, connection
+    ):
+        self._create_schema(connection, schema)
+        self._create_table(
+            connection,
+            schema,
+            table,
+            asset_schema.get_sql_columns(),
+        )
+        connection.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"'))
+        # problem is this is creating a table with identity but we have filtered out the identity column
+        self._create_table(
+            connection,
+            schema,
+            staging_table,
+            asset_schema.get_sql_columns(),
+        )
+
     @abstractmethod
     def _reorder_columns(
         self,
@@ -654,6 +651,8 @@ class BCPCore(ABC):
     ) -> list[str] | None:
         """
         Retrieves the column names of a specified table within a given schema from the database.
+        Primary reason is BCP returns as the structure of the table.
+        This is an easy way of getting back its representation at the cost of a call to SQL.
         Args:
             connection (Connection): The database connection object.
             schema (str): The schema name where the table resides.
@@ -668,7 +667,17 @@ class BCPCore(ABC):
         result = [row[0] for row in connection.execute(text(sql))]
         result = None if len(result) == 0 else result
         return result
-
+    @abstractmethod
+    def _add_identity_columns(self, data, asset_schema: AssetSchema):
+        """
+        Adds missing identity columns to the given data.
+        This method should add identity columns to the data where they are missing.
+        Args:
+            data: The data to which identity columns will be added.
+            asset_schema (AssetSchema): The schema that defines the identity columns.
+        """
+        raise NotImplementedError
+    
     @abstractmethod
     def _get_frame_columns(self, data) -> list[str]:
         """
@@ -957,14 +966,3 @@ class BCPCore(ABC):
         connection.execute(text(update_sql))
 
     # endregion
-
-    @abstractmethod
-    def _add_identity_columns(self, data, asset_schema: AssetSchema):
-        """
-        Adds missing identity columns to the given data.
-        This method should add identity columns to the data where they are missing.
-        Args:
-            data: The data to which identity columns will be added.
-            asset_schema (AssetSchema): The schema that defines the identity columns.
-        """
-        raise NotImplementedError

@@ -98,15 +98,28 @@ class AssetSchema:
         return True
 
     def validate_asset_schema(self):
+        """Validates the asset schema for:
+        
+        all entries have a name
+        all columns have a unique name
+        all columns have a valid type
+        """
         columns = {}
         for column in self.schema:
             column_name = column.get("name")
+            alias_name = column.get("alias")
             if column_name is None:
                 raise ValueError(f"Column name not provided for column: {column}")
             
-            column_counter = columns.get(column["name"], 0)
+            if alias_name is not None:
+                column_name = alias_name
+
+            column_counter = columns.get(column_name, 0)
             if column_counter > 0:
-                raise ValueError(f"Duplicate column name: {column['name']}")
+                msg = f"Duplicate column name: {column['name']}"
+                if alias_name:
+                    msg += f' alias as {alias_name}'
+                raise ValueError(msg)
             
             columns[column_name] = 1
 
@@ -120,16 +133,20 @@ class AssetSchema:
 
     @staticmethod
     def _resolve_name(column: dict):
+        """Resolve a columns name as either the alias or name, if no alias provided"""
         return column.get("alias", column.get("name"))
 
     @staticmethod
     def _resolve_type(column: dict):
+        """Returns the SQL type of column"""
         return column["type"].upper()
 
     def get_source_columns(self):
+        """Returns a list of columns by their source names."""
         return [column["name"] for column in self.schema]
 
     def get_columns(self, include_identity=False):
+        """Return the columns from the schema. Default does not include columns flagged as `identity`"""
         result = []
         for column in self.schema:
             if column.get("identity", False) is True and not include_identity:

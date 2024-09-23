@@ -328,6 +328,14 @@ class TestAssetSchema:
             asset_schema.AssetSchema(duplicate_columns)
         assert "Duplicate column name: a" in str(ae.value)
 
+        duplicate_columns = [
+            {"name": "a", "type": "BIGINT"},
+            {"name": "b", 'alias': 'a', "type": "BIGINT"},
+        ]
+        with pytest.raises(ValueError) as ae:
+            asset_schema.AssetSchema(duplicate_columns)
+        assert "Duplicate column name: b alias as a" in str(ae.value)
+
         missing_name = [
             {"type": "BIGINT"},
         ]

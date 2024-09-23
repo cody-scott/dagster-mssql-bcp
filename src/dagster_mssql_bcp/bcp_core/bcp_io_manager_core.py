@@ -109,13 +109,6 @@ class BCPIOManagerCore(ConfigurableIOManager):
                     columns=asset_schema.get_sql_columns(),
                 )
 
-            bcp_manager._create_table(
-                connection=connection,
-                schema=schema,
-                table=io_table,
-                columns=asset_schema.get_sql_columns(),
-            )
-
 
         results = bcp_manager.load_bcp(
             data=obj,
