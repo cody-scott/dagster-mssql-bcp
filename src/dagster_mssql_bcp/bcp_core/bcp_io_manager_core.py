@@ -6,6 +6,7 @@ from .asset_schema import AssetSchema
 from .mssql_connection import connect_mssql
 from .utils import get_cleanup_statement, get_select_statement
 
+from .bcp_core import BCPCore
 
 class BCPIOManagerCore(ConfigurableIOManager):
     host: str
@@ -107,18 +108,14 @@ class BCPIOManagerCore(ConfigurableIOManager):
                     table=table,
                     columns=asset_schema.get_sql_columns(),
                 )
-                bcp_manager._create_table(
-                    connection=connection,
-                    schema=schema,
-                    table=io_table,
-                    columns=asset_schema.get_sql_columns(),
-                )
-            else:
-                cols = ",".join(asset_schema.get_columns(True))
 
-                connection.exec_driver_sql(
-                    f"""SELECT {cols} INTO {schema}.{io_table} FROM {schema}.{table} WHERE 1=0"""
-                )
+            bcp_manager._create_table(
+                connection=connection,
+                schema=schema,
+                table=io_table,
+                columns=asset_schema.get_sql_columns(),
+            )
+
 
         results = bcp_manager.load_bcp(
             data=obj,
@@ -168,6 +165,6 @@ class BCPIOManagerCore(ConfigurableIOManager):
         """Checks if frame is empty"""
         raise NotImplementedError
 
-    def get_bcp(self, *args, **kwargs):
+    def get_bcp(self, *args, **kwargs) -> BCPCore:
         """Returns an instance of the BCP class for the given connection details."""
         raise NotImplementedError
