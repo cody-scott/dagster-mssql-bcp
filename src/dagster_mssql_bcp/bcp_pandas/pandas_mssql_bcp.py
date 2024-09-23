@@ -121,3 +121,14 @@ class PandasBCP(BCPCore):
 
     def _rename_columns(self, data: pd.DataFrame, columns: dict) -> pd.DataFrame:
         return data.rename(columns=columns)
+
+
+    def _add_identity_columns(self, data: pd.DataFrame, asset_schema: AssetSchema) -> pd.DataFrame:
+        ident_cols = asset_schema.get_identity_columns()
+        missing_idents = [
+            _ for _ in ident_cols if _ not in data.columns
+        ]
+        for _ in missing_idents:
+            data[_] = None
+        
+        return data

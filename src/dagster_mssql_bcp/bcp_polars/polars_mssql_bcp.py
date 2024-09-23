@@ -142,3 +142,17 @@ class PolarsBCP(BCPCore):
 
     def _rename_columns(self, data: pl.DataFrame, columns: dict) -> pl.DataFrame:
         return data.rename(columns)
+
+    def _add_identity_columns(self, data: pl.DataFrame, asset_schema: AssetSchema) -> pl.DataFrame:
+        ident_cols = asset_schema.get_identity_columns()
+        missing_idents = [
+            _ for _ in ident_cols if _ not in data.columns
+        ]
+        data = data.with_columns(
+            [
+                pl.lit(None).alias(_)
+                for _ in missing_idents
+                
+            ]
+        )
+        return data

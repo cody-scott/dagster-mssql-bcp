@@ -426,7 +426,7 @@ class TestPolarsBCP:
                 conn,
                 "test",
                 "pandas_test_create_table",
-                schema,
+                schema.get_sql_columns(),
             )
             columns = polars_io._get_sql_columns(
                 conn, "test", "pandas_test_create_table"
@@ -437,7 +437,7 @@ class TestPolarsBCP:
             schema = polars_mssql_bcp.AssetSchema(base_schema.schema[:])
             schema.add_column(load_uuid_col)
             schema.add_column(load_datetime_col)
-            polars_io._create_table(conn, "test", "pandas_test_create_table", schema)
+            polars_io._create_table(conn, "test", "pandas_test_create_table", schema.get_sql_columns())
             columns = polars_io._get_sql_columns(
                 conn,
                 "test",

@@ -105,16 +105,16 @@ class BCPIOManagerCore(ConfigurableIOManager):
                     connection=connection,
                     schema=schema,
                     table=table,
-                    columns=asset_schema,
+                    columns=asset_schema.get_sql_columns(),
                 )
                 bcp_manager._create_table(
                     connection=connection,
                     schema=schema,
                     table=io_table,
-                    columns=asset_schema,
+                    columns=asset_schema.get_sql_columns(),
                 )
             else:
-                cols = ",".join(asset_schema.get_columns())
+                cols = ",".join(asset_schema.get_columns(True))
 
                 connection.exec_driver_sql(
                     f"""SELECT {cols} INTO {schema}.{io_table} FROM {schema}.{table} WHERE 1=0"""

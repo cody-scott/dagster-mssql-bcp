@@ -215,7 +215,7 @@ class BCPCore(ABC):
             )
 
             self._create_target_tables(
-                data, schema, table, asset_schema, staging_table, connection
+                schema, table, asset_schema, staging_table, connection
             )
 
         self._bcp_stage(data, schema, table, staging_table)
@@ -259,14 +259,14 @@ class BCPCore(ABC):
                     con, schema, staging_table, asset_schema
                 )
 
+            if add_row_hash:
+                self._calculate_row_hash(
+                    con, schema, staging_table, asset_schema.get_hash_columns()
+                )
+
             self._insert_and_drop_bcp_table(
                 con, schema, table, staging_table, asset_schema
             )
-
-            if add_row_hash:
-                self._calculate_row_hash(
-                    con, schema, table, asset_schema.get_hash_columns()
-                )
 
         return new_line_count
 
@@ -287,43 +287,43 @@ class BCPCore(ABC):
             )
 
     def _create_target_tables(
-        self, data, schema, table, asset_schema, staging_table, connection
+        self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
-        data_columns_str = ",".join(self._get_frame_columns(data))
-
         self._create_schema(connection, schema)
         self._create_table(
             connection,
             schema,
             table,
-            asset_schema,
+            asset_schema.get_sql_columns(),
         )
         connection.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"'))
-        connection.execute(
-            text(
-                f"""
-                        SELECT {data_columns_str}
-                        INTO {schema}.{staging_table}
-                        FROM {schema}.{table}
-                        WHERE 1=0
-                    """
-            )
+        # problem is this is creating a table with identity but we have filtered out the identity column
+        self._create_table(
+            connection,
+            schema,
+            staging_table,
+            asset_schema.get_sql_columns(),
         )
+
 
     def _pre_bcp_stage(
         self,
-        connection,
+        connection: Connection,
         data,
-        schema,
-        table,
-        asset_schema,
-        add_row_hash,
-        add_load_datetime,
-        add_load_uuid,
-        uuid,
-        process_datetime,
-        process_replacements,
+        schema: str,
+        table: str,
+        asset_schema: AssetSchema,
+        add_row_hash: bool,
+        add_load_datetime: bool,
+        add_load_uuid: bool,
+        uuid: str,
+        process_datetime: bool,
+        process_replacements: bool,
     ):
+        """
+        This step is responsible for preparing the data for the BCP stage.
+        This includes renaming and reformating columns, adding metadata columns, and validating the schema.
+        """
         data = self._add_meta_columns(
             data,
             uuid_value=uuid,
@@ -331,6 +331,8 @@ class BCPCore(ABC):
             add_datetime=add_load_datetime,
             add_uuid=add_load_uuid,
         )
+
+        data = self._add_identity_columns(data=data, asset_schema=asset_schema)
 
         sql_structure = self._get_sql_columns(connection, schema, table)
         frame_columns = self._get_frame_columns(data)
@@ -342,7 +344,7 @@ class BCPCore(ABC):
             )
 
             # Filter columns that are not in the json schema (evolution)
-        data = self._filter_columns(data, asset_schema.get_columns())
+        data = self._filter_columns(data, asset_schema.get_columns(True))
 
         sql_structure = sql_structure or frame_columns
         data = self._reorder_columns(data, sql_structure)
@@ -622,7 +624,7 @@ class BCPCore(ABC):
         connection: Connection,
         schema: str,
         table: str,
-        columns: AssetSchema,
+        columns: list[str],
     ):
         """
         Creates a table in the specified schema if it does not already exist.
@@ -630,11 +632,11 @@ class BCPCore(ABC):
             connection (Connection): The database connection object.
             schema (str): The schema in which to create the table.
             table (str): The name of the table to create.
-            columns (AssetSchema): An object representing the schema of the table's columns.
+            columns (list[str]): a list of strings containing the SQL type and constraints. NVARCHAR(10), BIGINT, DECIMAL(18,2).
         Returns:
             None
         """
-        column_list = columns.get_sql_columns()
+        column_list = columns
 
         column_list_str = ",\n".join(column_list)
         sql = f"""
@@ -955,3 +957,14 @@ class BCPCore(ABC):
         connection.execute(text(update_sql))
 
     # endregion
+
+    @abstractmethod
+    def _add_identity_columns(self, data, asset_schema: AssetSchema):
+        """
+        Adds missing identity columns to the given data.
+        This method should add identity columns to the data where they are missing.
+        Args:
+            data: The data to which identity columns will be added.
+            asset_schema (AssetSchema): The schema that defines the identity columns.
+        """
+        raise NotImplementedError

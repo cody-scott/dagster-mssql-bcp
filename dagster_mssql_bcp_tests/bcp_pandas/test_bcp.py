@@ -374,7 +374,7 @@ class TestPandasBCP:
                 conn,
                 "test",
                 "pandas_test_create_table",
-                schema,
+                schema.get_sql_columns(),
             )
             columns = pandas_io._get_sql_columns(
                 conn, "test", "pandas_test_create_table"
@@ -386,7 +386,7 @@ class TestPandasBCP:
             schema.add_column(load_uuid_col)
             schema.add_column(load_datetime_col)
 
-            pandas_io._create_table(conn, "test", "pandas_test_create_table", schema)
+            pandas_io._create_table(conn, "test", "pandas_test_create_table", schema.get_sql_columns())
 
             columns = pandas_io._get_sql_columns(
                 conn,
