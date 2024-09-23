@@ -11,6 +11,8 @@ This is a custom dagster IO manager for loading data into SQL Server using the `
 
 ### Pypi
 
+![PyPI](https://img.shields.io/pypi/v/dagster-mssql-bcp?label=latest%20stable&logo=pypi)
+
 `pip install dagster-mssql-bcp`
 
 ### BCP Utility
