@@ -356,3 +356,21 @@ class TestAssetSchema:
         with pytest.raises(ValueError) as ae:
             asset_schema.AssetSchema(invalid_type)
         assert "Invalid data type: INVALID" in str(ae.value)
+
+
+    def test_staging_types(self):
+        schema = [
+            {'name': 'a', 'type': 'NVARCHAR', 'length': 100},
+            {'name': 'b', 'type': 'XML'},
+        ]
+
+        asset_schema_obj = asset_schema.AssetSchema(schema)
+
+        assert asset_schema_obj.get_sql_columns() == [
+            'a NVARCHAR(100)',
+            'b XML',
+        ]
+        assert asset_schema_obj.get_sql_columns(True) == [
+            'a NVARCHAR(100)',
+            'b VARBINARY(MAX)',
+        ]

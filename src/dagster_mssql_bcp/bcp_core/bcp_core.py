@@ -430,7 +430,7 @@ class BCPCore(ABC):
             connection,
             schema,
             staging_table,
-            asset_schema.get_sql_columns(),
+            asset_schema.get_sql_columns(True),
         )
 
     @abstractmethod
@@ -919,10 +919,14 @@ class BCPCore(ABC):
 
         schema_columns = asset_schema.get_columns()
         schema_columns_str = ", ".join(schema_columns)
+
+        schema_with_cast = asset_schema.get_sql_columns_with_cast()
+        schema_with_cast_str = ", ".join(schema_with_cast)
+
         get_dagster_logger().debug("Inserting data and dropping BCP table")
         insert_sql = f"""
         INSERT INTO {schema}.{table} ({schema_columns_str})
-        SELECT {schema_columns_str} FROM {schema}.{bcp_table}
+        SELECT {schema_with_cast_str} FROM {schema}.{bcp_table}
         """
         connection.execute(
             text(

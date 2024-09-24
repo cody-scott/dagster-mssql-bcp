@@ -63,6 +63,8 @@ class AssetSchema:
     money_column_types = ["MONEY"]
     xml_column_types = ["XML"]
     binary_column_types = ['BINARY', 'VARBINARY']
+    geography_column_types = ['GEOGRAPHY']
+    geometry_column_types = ['GEOMETRY']
 
     number_column_types = (
         int_column_types
@@ -81,6 +83,14 @@ class AssetSchema:
         + money_column_types
         + xml_column_types
         + binary_column_types
+        + geography_column_types
+        + geometry_column_types
+    )
+
+    _stage_as_binary = (
+        xml_column_types +
+        geography_column_types +
+        geometry_column_types
     )
 
     def __init__(self, schema: list[dict]):
@@ -99,7 +109,7 @@ class AssetSchema:
 
     def validate_asset_schema(self):
         """Validates the asset schema for:
-        
+
         all entries have a name
         all columns have a unique name
         all columns have a valid type
@@ -109,8 +119,9 @@ class AssetSchema:
             column_name = column.get("name")
             alias_name = column.get("alias")
             if column_name is None:
-                raise ValueError(f"Column name not provided for column: {column}")
-            
+                raise ValueError(
+                    f"Column name not provided for column: {column}")
+
             if alias_name is not None:
                 column_name = alias_name
 
@@ -120,14 +131,14 @@ class AssetSchema:
                 if alias_name:
                     msg += f' alias as {alias_name}'
                 raise ValueError(msg)
-            
+
             columns[column_name] = 1
 
             column_type = column.get("type", None)
             if column_type is None:
-                raise ValueError(f"Column type not provided for column: {column['name']}")
-            
-            
+                raise ValueError(
+                    f"Column type not provided for column: {column['name']}")
+
             if column_type not in self.allowed_types:
                 raise ValueError(f"Invalid data type: {column['type']}")
 
@@ -151,7 +162,8 @@ class AssetSchema:
         for column in self.schema:
             if column.get("identity", False) is True and not include_identity:
                 continue
-            result.append(self._resolve_name(column))
+            column_name = self._resolve_name(column)
+            result.append(f"{column_name}")
         return result
 
     def get_hash_columns(self):
@@ -199,8 +211,34 @@ class AssetSchema:
             if column.get("identity", False) is True
         ]
 
+    def get_sql_columns_with_cast(self, include_identity=False) -> list[str]:
+        result = []
+        for column in self.schema:
+            if column.get("identity", False) is True and not include_identity:
+                continue
+            column_name = self._resolve_name(column)
+            column_type = column.get('type')
+            if column_type in self.xml_column_types:
+                result.append(f"""
+                            (
+                                CAST(
+                                    {self._resolve_name(column)}
+                                    AS {column_type}
+                                )
+                            ) AS {self._resolve_name(column)}
+                            """)
+                
+            elif column_type in self.geography_column_types + self.geometry_column_types:
+                srid = column.get('srid', 4326)
+                result.append(f"{column_type}::STGeomFromWKB({column_name}, {srid}) AS {column_name}")
+            else:
+                result.append(f"{column_name} AS {column_name}") 
+        return result
 
-    def get_sql_columns(self) -> list[str]:
+    def get_sql_columns(self, staging: bool | None = None) -> list[str]:
+        if staging is None:
+            staging = False
+
         columns = []
         for column in self.schema:
             to_add = None
@@ -209,16 +247,18 @@ class AssetSchema:
             data = column
             data_type = self._resolve_type(data)
 
-            if data_type not in self.allowed_types:
-                raise ValueError(f"Invalid data type: {data_type}")
+            if staging and data_type in self._stage_as_binary:
+                data_type = "VARBINARY"
 
             if data_type in (self.text_column_types + self.binary_column_types):
                 length = data.get("length", "MAX")
                 to_add = f"{column_name} {data_type}({length})"
+
             elif data_type in self.decimal_column_types:
                 precision = data.get("precision", 18)
                 scale = data.get("scale", 0)
                 to_add = f"{column_name} {data_type}({precision}, {scale})"
+
             else:
                 to_add = f"{column_name} {data_type}"
 
@@ -287,3 +327,4 @@ class AssetSchema:
 
     def add_column(self, column: dict):
         self.schema.append(column)
+        self.validate_asset_schema()

@@ -244,8 +244,8 @@ class TestPolarsBCPIO:
         )
 
     def test_handle_output_static_partition(self):
-        schema = "test_pandas_bcp_schema"
-        table = "my_pandas_asset_static_part"
+        schema = "test_polars_bcp_schema"
+        table = "my_polars_asset_static_part"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         with self.connect_mssql() as connection:
@@ -309,7 +309,7 @@ class TestPolarsBCPIO:
         )
 
     def test_basic_no_extras(self):
-        schema = "test_pandas_bcp_schema"
+        schema = "test_polars_bcp_schema"
         table = "basic_no_extra"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
@@ -350,7 +350,7 @@ class TestPolarsBCPIO:
         )
 
     def test_basic_replacements(self):
-        schema = "test_pandas_bcp_schema"
+        schema = "test_polars_bcp_schema"
         table = "test_basic_replacements"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
@@ -395,7 +395,7 @@ class TestPolarsBCPIO:
             assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb')]
 
     def test_absent_identity(self):
-        schema = "test_pandas_bcp_schema"
+        schema = "test_polars_bcp_schema"
         table = "test_absent_identity"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
@@ -446,3 +446,85 @@ class TestPolarsBCPIO:
             result = connection.exec_driver_sql(f'SELECT * FROM {schema}.{table}')
             assert result.fetchall() == [(3, 'a\t\nb'), (4, 'a\t\tb')]
 
+    def test_xml(self):
+        schema = 'test_polars_bcp_schema'
+        table = 'test_polars_bcp_table_xml'
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        asset_schema = [
+            {"name": "a", "type": "INT", 'identity': True},
+            {"name": "xml_data", "type": "XML"},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
+            },
+        )
+        def my_asset(context):
+            return pl.DataFrame({'xml_data': ["""<?xml version="1.0" encoding="UTF-8"?>
+                <note>
+                <to>Tove</to>
+                <from>Jani</from>
+                <heading>Reminder</heading>
+                <body>Don't forget me this weekend!</body>
+                </note>""".encode('utf-8').hex()]})
+
+            # original structure
+
+        io_manager = self.io()
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+        with self.connect_mssql() as connection:
+            result = connection.exec_driver_sql(
+                f'SELECT * FROM {schema}.{table}')
+            assert result.fetchall() == [(
+                1, "<note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Don't forget me this weekend!</body></note>")]
+
+    def test_geo(self):
+        schema = 'test_polars_bcp_schema'
+        table = 'test_polars_bcp_table_geo'
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        asset_schema = [
+            {"name": "a", "type": "INT", 'identity': True},
+            {"name": "geo_data", "type": "GEOGRAPHY", 'srid': 4326},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
+            },
+        )
+        def my_asset(context):
+            return pl.DataFrame({'geo_data': ['0103000000010000000500000000000000004054C0000000000080464000000000004054C0000000000000464000000000000054C0000000000000464000000000000054C0000000000080464000000000004054C00000000000804640']})
+
+            # original structure
+
+        io_manager = self.io()
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
