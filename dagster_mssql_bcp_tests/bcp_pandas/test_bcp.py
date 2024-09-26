@@ -212,7 +212,7 @@ class TestPandasBCP:
         pl_testing.assert_frame_equal(df, expected)
 
         df = pd.DataFrame(
-            {"c": ["nan", "NAN", "c", "abc\tdef", "abc\t\ndef", "abc\ndef"]}
+            {"c": ["nan", "NAN", "c", "abc\tdef", "abc\t\ndef", "abc\ndef", "nan", "somenanthing"]}
         )
         expected = df = pd.DataFrame(
             {
@@ -223,6 +223,8 @@ class TestPandasBCP:
                     "abc__TAB__def",
                     "abc__TAB____NEWLINE__def",
                     "abc__NEWLINE__def",
+                    "",
+                    "somenanthing"
                 ]
             }
         )

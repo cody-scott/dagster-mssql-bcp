@@ -261,7 +261,7 @@ class TestPolarsBCP:
         pl_testing.assert_frame_equal(df, expected)
 
         df = pl.DataFrame(
-            {"c": ["nan", "NAN", "c", "abc\tdef", "abc\t\ndef", "abc\ndef"]}
+            {"c": ["nan", "NAN", "c", "abc\tdef", "abc\t\ndef", "abc\ndef", "nan", "somenanthing"]}
         )
         expected = df = pl.DataFrame(
             {
@@ -272,6 +272,8 @@ class TestPolarsBCP:
                     "abc__TAB__def",
                     "abc__TAB____NEWLINE__def",
                     "abc__NEWLINE__def",
+                    "",
+                    "somenanthing"
                 ]
             }
         ) 
