@@ -12,6 +12,7 @@ import polars.testing as pl_testing
 
 import pendulum
 import tempfile
+import datetime
 
 
 class TestPolarsBCP:
@@ -366,6 +367,20 @@ class TestPolarsBCP:
             ]
         )
         df = polars_io._process_datetime(input, schema)
+        pl_testing.assert_frame_equal(df, expected)
+
+
+        schema = polars_mssql_bcp.AssetSchema(
+            [
+                {'name': 'a', 'type': 'DATETIME2'},
+            ]
+        )
+
+        input = pl.date_range(datetime.date(2021,1,1), datetime.date(2021,1,3), eager=True).alias('a').to_frame()
+        df = polars_io._process_datetime(input, schema)
+        expected = pl.DataFrame(
+            {'a': ["2021-01-01 00:00:00+00:00", "2021-01-02 00:00:00+00:00", "2021-01-03 00:00:00+00:00"]}
+        )
         pl_testing.assert_frame_equal(df, expected)
 
     def test_save_csv(self, polars_io):
