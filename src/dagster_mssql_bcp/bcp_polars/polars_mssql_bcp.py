@@ -89,7 +89,7 @@ class PolarsBCP(BCPCore):
         This is what BCP expects. 2024-01-01 00:00:00+00:00 from 2024-01-01T00:00:00Z
         """
 
-        dt_columns = data.select(cs.datetime()).columns
+        dt_columns = data.select(cs.datetime(), cs.date(), cs.time()).columns
 
         data = data.with_columns(
             [
@@ -99,6 +99,14 @@ class PolarsBCP(BCPCore):
             ]
         )
 
+        date_cols = data.select(cs.date()).columns
+        data = data.with_columns(
+            [
+                pl.col(_).cast(pl.Datetime)
+                for _ in date_cols
+            ]
+        )
+        
         dt_columns_in_tz = data.select(cs.datetime(time_zone="*")).columns
         data = data.with_columns(
             [
