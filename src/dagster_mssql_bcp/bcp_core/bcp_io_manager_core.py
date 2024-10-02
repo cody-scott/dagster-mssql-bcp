@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from dagster import ConfigurableIOManager, InputContext, OutputContext
+from dagster import ConfigurableIOManager, InputContext, OutputContext, get_dagster_logger
 
 from .asset_schema import AssetSchema
 from .mssql_connection import connect_mssql
@@ -35,7 +35,8 @@ class BCPIOManagerCore(ConfigurableIOManager):
         raise NotImplementedError
 
     def handle_output(self, context: OutputContext, obj):
-        if self.check_empty(obj):
+        if obj is None:
+            get_dagster_logger().info("No data to load")
             return
 
         bcp_manager = self.get_bcp(
