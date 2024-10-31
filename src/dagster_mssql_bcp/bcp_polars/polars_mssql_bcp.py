@@ -6,9 +6,10 @@ import pendulum
 try:
     import polars as pl
     import polars.selectors as cs
+
     polars_available = 1
 except ImportError:
-    polars_available=0
+    polars_available = 0
 
 from dagster_mssql_bcp.bcp_core import AssetSchema, BCPCore
 
@@ -16,7 +17,7 @@ from dagster_mssql_bcp.bcp_core import AssetSchema, BCPCore
 class PolarsBCP(BCPCore):
     def _add_meta_columns(
         self,
-        data: pl.DataFrame,
+        data: pl.LazyFrame,
         uuid_value: str,
         add_hash: bool = True,
         add_uuid: bool = True,
@@ -43,11 +44,11 @@ class PolarsBCP(BCPCore):
 
         return data.with_columns(columns_to_add)
 
-    def _replace_values(self, data: pl.DataFrame, asset_schema: AssetSchema):
+    def _replace_values(self, data: pl.LazyFrame, asset_schema: AssetSchema):
         """Replaces values in the DataFrame to ensure they are compatible with BCP."""
         number_columns_that_are_strings = [
             _
-            for _ in data.select(cs.by_dtype(pl.String)).columns
+            for _ in data.select(cs.by_dtype(pl.String)).collect_schema().names()
             if _ in asset_schema.get_numeric_columns()
         ]
 
@@ -58,24 +59,24 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("\n", "__NEWLINE__")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
-                for _ in data.select(cs.by_dtype(pl.String)).columns
+                for _ in data.select(cs.by_dtype(pl.String)).collect_schema().names()
                 if _ not in number_columns_that_are_strings
-            ] +
-            [
+            ]
+            + [
                 pl.col(_)
                 .str.replace_all(",", "")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
                 for _ in number_columns_that_are_strings
-            ] +
-            [pl.col(_).cast(pl.Int64) for _ in data.select(cs.boolean()).columns]
+            ]
+            + [pl.col(_).cast(pl.Int64) for _ in data.select(cs.boolean()).collect_schema().names()]
         )
 
         return data
 
     def _process_datetime(
-        self, data: pl.DataFrame, asset_schema: AssetSchema
-    ) -> pl.DataFrame:
+        self, data: pl.LazyFrame, asset_schema: AssetSchema
+    ) -> pl.LazyFrame:
         """
         Processes datetime columns in the DataFrame to ensure they are compatible with BCP.
 
@@ -89,7 +90,9 @@ class PolarsBCP(BCPCore):
         This is what BCP expects. 2024-01-01 00:00:00+00:00 from 2024-01-01T00:00:00Z
         """
 
-        dt_columns = data.select(cs.datetime(), cs.date(), cs.time()).columns
+        dt_columns = (
+            data.select(cs.datetime(), cs.date(), cs.time()).collect_schema().names()
+        )
 
         data = data.with_columns(
             [
@@ -99,15 +102,12 @@ class PolarsBCP(BCPCore):
             ]
         )
 
-        date_cols = data.select(cs.date()).columns
-        data = data.with_columns(
-            [
-                pl.col(_).cast(pl.Datetime)
-                for _ in date_cols
-            ]
+        date_cols = data.select(cs.date()).collect_schema().names()
+        data = data.with_columns([pl.col(_) for _ in date_cols])
+
+        dt_columns_in_tz = (
+            data.select(cs.datetime(time_zone="*")).collect_schema().names()
         )
-        
-        dt_columns_in_tz = data.select(cs.datetime(time_zone="*")).columns
         data = data.with_columns(
             [
                 pl.col(_).dt.convert_time_zone("UTC")
@@ -127,12 +127,12 @@ class PolarsBCP(BCPCore):
         )
         return data
 
-    def _reorder_columns(self, data: pl.DataFrame, column_list: list[str]):
+    def _reorder_columns(self, data: pl.LazyFrame, column_list: list[str]):
         """Reorder the data frame to match the order of the columns in the SQL table."""
-        column_list = [column for column in column_list if column in data.columns]
+        column_list = [column for column in column_list if column in data.collect_schema().names()]
         return data.select(column_list)
 
-    def _save_csv(self, data: pl.DataFrame, path: Path, file_name: str):
+    def _save_csv(self, data: pl.LazyFrame, path: Path, file_name: str):
         path = Path(path)
         data.write_csv(
             file=path / file_name,
@@ -142,25 +142,25 @@ class PolarsBCP(BCPCore):
 
         return path / file_name
 
-    def _get_frame_columns(self, data: pl.DataFrame):
-        return data.columns
+    def _get_frame_columns(self, data: pl.LazyFrame):
+        return data.collect_schema().names()
 
-    def _filter_columns(self, data: pl.DataFrame, columns: list[str]):
+    def _filter_columns(self, data: pl.LazyFrame, columns: list[str]):
         return data.select(columns)
 
-    def _rename_columns(self, data: pl.DataFrame, columns: dict) -> pl.DataFrame:
+    def _rename_columns(self, data: pl.LazyFrame, columns: dict) -> pl.LazyFrame:
         return data.rename(columns)
 
-    def _add_identity_columns(self, data: pl.DataFrame, asset_schema: AssetSchema) -> pl.DataFrame:
+    def _add_identity_columns(
+        self, data: pl.LazyFrame, asset_schema: AssetSchema
+    ) -> pl.LazyFrame:
         ident_cols = asset_schema.get_identity_columns()
-        missing_idents = [
-            _ for _ in ident_cols if _ not in data.columns
-        ]
-        data = data.with_columns(
-            [
-                pl.lit(None).alias(_)
-                for _ in missing_idents
-                
-            ]
-        )
+        missing_idents = [_ for _ in ident_cols if _ not in data.collect_schema().names()]
+        data = data.with_columns([pl.lit(None).alias(_) for _ in missing_idents])
         return data
+
+    def _pre_bcp_stage_completed_hook(self, data: pl.LazyFrame):
+        return data.collect()
+
+    def _pre_bcp_stage_pre_start_hook(self, data: pl.DataFrame):
+        return data.lazy()

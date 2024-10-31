@@ -204,6 +204,9 @@ class BCPCore(ABC):
                 schema, table, asset_schema, staging_table, connection
             )
             
+            data = self._pre_bcp_stage_pre_start_hook(
+                data
+            )
             data, schema_deltas = self._pre_bcp_stage(
                 connection,
                 data,
@@ -216,6 +219,9 @@ class BCPCore(ABC):
                 uuid,
                 process_datetime,
                 process_replacements,
+            )
+            data = self._pre_bcp_stage_completed_hook(
+                data
             )
 
         self._bcp_stage(data, schema, staging_table)
@@ -333,6 +339,12 @@ class BCPCore(ABC):
             )
 
         return new_line_count
+
+    def _pre_bcp_stage_completed_hook(self, dataframe):
+        return dataframe
+
+    def _pre_bcp_stage_pre_start_hook(self, dataframe):
+        return dataframe
 
     def _parse_asset_schema(self, schema, table, asset_schema):
         """
