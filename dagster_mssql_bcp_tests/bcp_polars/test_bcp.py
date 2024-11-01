@@ -249,7 +249,7 @@ class TestPolarsBCP:
             {"a": ["1,000", "2", "3"], "b": [4000, 5, 6], "c": ["a", "b", "c"]}
         )
         expected = df = pl.DataFrame(
-            {"a": ["1000", "2", "3"], "b": [4000, 5, 6], "c": ["a", "b", "c"]}
+            {"a": ["1000", "2", "3"], "b": [4000, 5, 6], "c": ["a", "b", "c"], 'should_process_replacements': [0, 0, 0]}
         )
         schema = polars_mssql_bcp.AssetSchema(
             [
@@ -264,7 +264,7 @@ class TestPolarsBCP:
         df = pl.DataFrame(
             {"c": ["nan", "NAN", "c", "abc\tdef", "abc\t\ndef", "abc\ndef", "nan", "somenanthing"]}
         )
-        expected = df = pl.DataFrame(
+        expected = pl.DataFrame(
             {
                 "c": [
                     "",
@@ -275,6 +275,9 @@ class TestPolarsBCP:
                     "abc__NEWLINE__def",
                     "",
                     "somenanthing"
+                ],
+                'should_process_replacements': [
+                    0, 0, 0, 1, 1, 1, 0, 0
                 ]
             }
         ) 
@@ -304,6 +307,7 @@ class TestPolarsBCP:
                     # "2021-01-01 00:00:00-05:00",
                 ],
                 "d": ["2021-01-01 00:00:00-05:00", "2021-01-01 00:00:00-05:00"],
+                "should_process_replacements": [0, 0]
             }
         )
 
