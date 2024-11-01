@@ -120,6 +120,28 @@ class BCPCore(ABC):
         self.load_datetime_column_name = load_datetime_column_name
 
     @property
+    def config(self):
+        return dict(
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            username=self.username,
+            password=self.password,
+            add_row_hash=self.add_row_hash,
+            add_load_datetime=self.add_load_datetime,
+            add_load_uuid=self.add_load_uuid,
+            driver=self.driver,
+            query_props=self.query_props,
+            bcp_arguments=self.bcp_arguments,
+            bcp_path=self.bcp_path,
+            process_datetime=self.process_datetime,
+            process_replacements=self.process_replacements,
+            row_hash_column_name=self.row_hash_column_name,
+            load_uuid_column_name=self.load_uuid_column_name,
+            load_datetime_column_name=self.load_datetime_column_name,
+        )
+
+    @property
     def connection_config(self):
         """
         Generates a dictionary containing the configuration parameters for a database connection.
@@ -204,9 +226,10 @@ class BCPCore(ABC):
                 schema, table, asset_schema, staging_table, connection
             )
             
-            data = self._pre_bcp_stage_pre_start_hook(
+            data = self._pre_start_hook(
                 data
             )
+
             data, schema_deltas = self._pre_bcp_stage(
                 connection,
                 data,
@@ -220,6 +243,7 @@ class BCPCore(ABC):
                 process_datetime,
                 process_replacements,
             )
+
             data = self._pre_bcp_stage_completed_hook(
                 data
             )
@@ -321,7 +345,7 @@ class BCPCore(ABC):
         with connect_mssql(connection_config_dict) as con:
             # Validate loads (counts of tables match)
             new_line_count = self._validate_bcp_load(
-                con, schema, staging_table, len(data)
+                con, schema, staging_table, None
             )
 
             if process_replacements:
@@ -343,7 +367,7 @@ class BCPCore(ABC):
     def _pre_bcp_stage_completed_hook(self, dataframe):
         return dataframe
 
-    def _pre_bcp_stage_pre_start_hook(self, dataframe):
+    def _pre_start_hook(self, dataframe):
         return dataframe
 
     def _parse_asset_schema(self, schema, table, asset_schema):
@@ -840,7 +864,7 @@ class BCPCore(ABC):
         connection: Connection,
         schema: str,
         bcp_table: str,
-        row_count: int,
+        row_count: int | None = None,
     ):
         """
         Validates the BCP load by comparing the row count in the specified table with the expected row count.
@@ -862,7 +886,7 @@ class BCPCore(ABC):
         result = cursor.fetchone()
         if result is None:
             raise ValueError("No result from validation")
-        if result[0] != row_count:
+        if row_count is not None and result[0] != row_count:
             raise ValueError("Validation failed")
         return result[0]
 

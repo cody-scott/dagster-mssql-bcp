@@ -397,7 +397,7 @@ class TestPolarsBCP:
                             pendulum.now(tz="America/Toronto"),
                         ],
                     }
-                ),
+                ).lazy(),
                 dir,
                 "test.csv",
             )

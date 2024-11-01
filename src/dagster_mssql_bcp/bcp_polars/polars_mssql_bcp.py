@@ -134,8 +134,8 @@ class PolarsBCP(BCPCore):
 
     def _save_csv(self, data: pl.LazyFrame, path: Path, file_name: str):
         path = Path(path)
-        data.write_csv(
-            file=path / file_name,
+        data.sink_csv(
+            path=path / file_name,
             line_terminator="\n",
             separator="\t",
         )
@@ -159,8 +159,5 @@ class PolarsBCP(BCPCore):
         data = data.with_columns([pl.lit(None).alias(_) for _ in missing_idents])
         return data
 
-    def _pre_bcp_stage_completed_hook(self, data: pl.LazyFrame):
-        return data.collect()
-
-    def _pre_bcp_stage_pre_start_hook(self, data: pl.DataFrame):
+    def _pre_start_hook(self, data: pl.DataFrame):
         return data.lazy()
