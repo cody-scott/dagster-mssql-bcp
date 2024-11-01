@@ -303,11 +303,12 @@ class BCPCore(ABC):
                 frame_columns, asset_schema.get_columns(), sql_structure
             )
 
-            # Filter columns that are not in the json schema (evolution)
+        # Filter columns that are not in the json schema (evolution)
         data = self._filter_columns(data, asset_schema.get_columns(True))
         sql_structure = sql_structure or frame_columns
         data = self._reorder_columns(data, sql_structure)
 
+        data = self._add_replacement_flag_column(data)
         if process_replacements:
             data = self._replace_values(data, asset_schema)
         if process_datetime:
@@ -466,7 +467,7 @@ class BCPCore(ABC):
             connection,
             schema,
             staging_table,
-            asset_schema.get_sql_columns(True),
+            asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
         )
 
     @abstractmethod
@@ -922,6 +923,8 @@ class BCPCore(ABC):
         UPDATE {schema}.{table}
         SET
         {set_columns}
+        WHERE
+        should_process_replacements = 1
         """
 
         update_sql_str = update_sql.format(
@@ -1006,3 +1009,11 @@ class BCPCore(ABC):
         connection.execute(text(update_sql))
 
     # endregion
+
+    @abstractmethod
+    def _add_replacement_flag_column(self, data):
+        """
+        Adds a bit column, `should_replace`, to indicate if that row should have the REPLACE applied.
+        Replace is applied for tabs and new lines only
+        """
+        raise NotImplementedError

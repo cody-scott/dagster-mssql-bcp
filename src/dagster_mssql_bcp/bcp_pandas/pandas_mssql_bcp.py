@@ -12,7 +12,6 @@ from dagster import get_dagster_logger
 from dagster_mssql_bcp.bcp_core import AssetSchema, BCPCore
 
 
-
 class PandasBCP(BCPCore):
     def _add_meta_columns(
         self,
@@ -122,13 +121,17 @@ class PandasBCP(BCPCore):
     def _rename_columns(self, data: pd.DataFrame, columns: dict) -> pd.DataFrame:
         return data.rename(columns=columns)
 
-
-    def _add_identity_columns(self, data: pd.DataFrame, asset_schema: AssetSchema) -> pd.DataFrame:
+    def _add_identity_columns(
+        self, data: pd.DataFrame, asset_schema: AssetSchema
+    ) -> pd.DataFrame:
         ident_cols = asset_schema.get_identity_columns()
-        missing_idents = [
-            _ for _ in ident_cols if _ not in data.columns
-        ]
+        missing_idents = [_ for _ in ident_cols if _ not in data.columns]
         for _ in missing_idents:
             data[_] = None
-        
+
+        return data
+
+    def _add_replacement_flag_column(self, data: pd.DataFrame):
+        # we just set this to 1 to force all rows to participate
+        data["should_process_replacements"] = 1
         return data
