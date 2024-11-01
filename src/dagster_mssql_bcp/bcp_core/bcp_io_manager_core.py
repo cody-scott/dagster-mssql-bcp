@@ -2,13 +2,14 @@ from uuid import uuid4
 
 from dagster import ConfigurableIOManager, InputContext, OutputContext, get_dagster_logger
 
+from abc import abstractmethod, ABC
 from .asset_schema import AssetSchema
 from .mssql_connection import connect_mssql
 from .utils import get_cleanup_statement, get_select_statement
 
 from .bcp_core import BCPCore
 
-class BCPIOManagerCore(ConfigurableIOManager):
+class BCPIOManagerCore(ConfigurableIOManager, ABC):
     host: str
     port: str
     database: str
@@ -31,6 +32,29 @@ class BCPIOManagerCore(ConfigurableIOManager):
     load_uuid_column_name: str = "load_uuid"
     load_datetime_column_name: str = "load_datetime"
 
+    @property
+    def config(self):
+        return dict(
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            username=self.username,
+            password=self.password,
+            add_row_hash=self.add_row_hash,
+            add_load_datetime=self.add_load_datetime,
+            add_load_uuid=self.add_load_uuid,
+            driver=self.driver,
+            query_props=self.query_props,
+            bcp_arguments=self.bcp_arguments,
+            bcp_path=self.bcp_path,
+            process_datetime=self.process_datetime,
+            process_replacements=self.process_replacements,
+            row_hash_column_name=self.row_hash_column_name,
+            load_uuid_column_name=self.load_uuid_column_name,
+            load_datetime_column_name=self.load_datetime_column_name,
+        )
+
+    @abstractmethod
     def load_input(self, context: InputContext):
         raise NotImplementedError
 
@@ -40,21 +64,7 @@ class BCPIOManagerCore(ConfigurableIOManager):
             return
 
         bcp_manager = self.get_bcp(
-            host=self.host,
-            port=self.port,
-            database=self.database,
-            username=self.username,
-            password=self.password,
-            driver=self.driver,
-            bcp_arguments=self.bcp_arguments,
-            query_props=self.query_props,
-            add_row_hash=self.add_row_hash,
-            add_load_datetime=self.add_load_datetime,
-            add_load_uuid=self.add_load_uuid,
-            bcp_path=self.bcp_path,
-            row_hash_column_name=self.row_hash_column_name,
-            load_uuid_column_name=self.load_uuid_column_name,
-            load_datetime_column_name=self.load_datetime_column_name,
+            **self.config
         )
 
         metadata = (
@@ -155,10 +165,12 @@ class BCPIOManagerCore(ConfigurableIOManager):
             | deltas
         )
 
+    @abstractmethod
     def check_empty(self, obj) -> bool:
         """Checks if frame is empty"""
         raise NotImplementedError
 
+    @abstractmethod
     def get_bcp(self, *args, **kwargs) -> BCPCore:
         """Returns an instance of the BCP class for the given connection details."""
         raise NotImplementedError

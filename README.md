@@ -40,6 +40,8 @@ The user running the dagster pipeline must have the necessary permissions to loa
 
 ## Polars
 
+Polars processes as a `LazyFrame`. Either a `DataFrame` or `LazyFrame` can be provided as an output of your asset before its cast automatically to `lazy`
+
 ```python
 from dagster import asset, Definitions
 from dagster_mssql_bcp import PolarsBCPIOManager
@@ -69,8 +71,19 @@ def my_polars_asset(context):
     return pl.DataFrame({"id": [1, 2, 3]})
 
 
+@asset(
+    metadata={
+        "asset_schema": [
+            {"name": "id", "type": "INT"},
+        ],
+        "schema": "my_schema",
+    }
+)
+def my_polars_asset_lazy(context):
+    return pl.LazyFrame({"id": [1, 2, 3]})
+
 defs = Definitions(
-    assets=[my_polars_asset],
+    assets=[my_polars_asset, my_polars_asset_lazy],
     io_managers={
         "io_manager": io_manager,
     },
@@ -105,7 +118,7 @@ io_manager = PandasBCPIOManager(
         "schema": "my_schema",
     }
 )
-def my_polars_asset(context):
+def my_pandas_asset(context):
     return pd.DataFrame({"id": [1, 2, 3]})
 
 

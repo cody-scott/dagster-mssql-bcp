@@ -338,7 +338,7 @@ class TestPolarsBCP:
                     "2021-01-01 00:00:00-05:00",
                 ],
             }
-        )
+        ).lazy()
         expected = pl.DataFrame(
             {
                 "a": [
@@ -366,7 +366,7 @@ class TestPolarsBCP:
                 {"name": "c", "type": "DATETIME2"},
             ]
         )
-        df = polars_io._process_datetime(input, schema)
+        df = polars_io._process_datetime(input, schema).collect()
         pl_testing.assert_frame_equal(df, expected)
 
 
@@ -376,8 +376,8 @@ class TestPolarsBCP:
             ]
         )
 
-        input = pl.date_range(datetime.date(2021,1,1), datetime.date(2021,1,3), eager=True).alias('a').to_frame()
-        df = polars_io._process_datetime(input, schema)
+        input = pl.datetime_range(datetime.datetime(2021,1,1), datetime.datetime(2021,1,3), eager=True).alias('a').to_frame().lazy()
+        df = polars_io._process_datetime(input, schema).collect()
         expected = pl.DataFrame(
             {'a': ["2021-01-01 00:00:00+00:00", "2021-01-02 00:00:00+00:00", "2021-01-03 00:00:00+00:00"]}
         )
@@ -397,7 +397,7 @@ class TestPolarsBCP:
                             pendulum.now(tz="America/Toronto"),
                         ],
                     }
-                ),
+                ).lazy(),
                 dir,
                 "test.csv",
             )
