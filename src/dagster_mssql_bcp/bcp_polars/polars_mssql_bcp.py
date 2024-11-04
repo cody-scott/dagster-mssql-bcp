@@ -186,7 +186,7 @@ class PolarsBCP(BCPCore):
         data = data.with_columns([pl.lit(None).alias(_) for _ in missing_idents])
         return data
 
-    def _pre_start_hook(self, data: pl.DataFrame):
+    def _pre_prcessing_start_hook(self, data: pl.DataFrame):
         return data.lazy()
 
     def _add_replacement_flag_column(self, data: pl.DataFrame):
