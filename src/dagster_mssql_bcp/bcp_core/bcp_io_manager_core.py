@@ -1,6 +1,11 @@
 from uuid import uuid4
 
-from dagster import ConfigurableIOManager, InputContext, OutputContext, get_dagster_logger
+from dagster import (
+    ConfigurableIOManager,
+    InputContext,
+    OutputContext,
+    get_dagster_logger,
+)
 
 from abc import abstractmethod, ABC
 from .asset_schema import AssetSchema
@@ -8,6 +13,7 @@ from .mssql_connection import connect_mssql
 from .utils import get_cleanup_statement, get_select_statement
 
 from .bcp_core import BCPCore
+
 
 class BCPIOManagerCore(ConfigurableIOManager, ABC):
     host: str
@@ -63,9 +69,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             get_dagster_logger().info("No data to load")
             return
 
-        bcp_manager = self.get_bcp(
-            **self.config
-        )
+        bcp_manager = self.get_bcp(**self.config)
 
         metadata = (
             context.definition_metadata
@@ -74,29 +78,30 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
         )
 
         if len(context.asset_key.path) < 2:
-            schema = 'dbo'
+            schema = "dbo"
             table = context.asset_key.path[-1]
         else:
             schema, table = context.asset_key.path[-2], context.asset_key.path[-1]
-            
+
         schema = metadata.get("schema", schema)
         table = metadata.get("table", table)
 
-        asset_schema = metadata.get("asset_schema")
-        if asset_schema is None:
-            raise ValueError("No data table provided in metadata")
-        asset_schema = AssetSchema(asset_schema)
+        asset_schema = AssetSchema(metadata.get("asset_schema"))
 
         add_row_hash = metadata.get("add_row_hash", True)
         add_load_datetime = metadata.get("add_load_datetime", True)
         add_load_uuid = metadata.get("add_load_uuid", True)
 
         process_datetime = metadata.get("process_datetime", self.process_datetime)
-        process_replacements = metadata.get("process_replacements", self.process_replacements)
+        process_replacements = metadata.get(
+            "process_replacements", self.process_replacements
+        )
 
         uuid = str(uuid4())
         uuid_table = uuid.replace("-", "_").split("_")[0]
-        io_table = f"{table}__io__{uuid_table}"
+        staging_Table = f"{table}__io__{uuid_table}"
+
+        obj = bcp_manager._rename_columns(obj, asset_schema.get_rename_dict())
 
         asset_schema = bcp_manager._add_meta_to_asset_schema(
             asset_schema,
@@ -105,51 +110,37 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             add_load_uuid=add_load_uuid,
         )
 
-        # create the table
         with connect_mssql(bcp_manager.connection_config) as connection:
-            # if the table doesn't exist do this otherwise select 1=0
-            result = connection.exec_driver_sql(
-                f"""SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'"""
+            data, schema_deltas = bcp_manager._pre_bcp_stage(
+                connection=connection,
+                data=obj,
+                schema=schema,
+                table=table,
+                asset_schema=asset_schema,
+                add_row_hash=add_row_hash,
+                add_load_datetime=add_load_datetime,
+                add_load_uuid=add_load_uuid,
+                uuid=uuid,
+                process_datetime=process_datetime,
+                process_replacements=process_replacements,
+                staging_table=staging_Table,
             )
-            if len(result.fetchall()) == 0:
-                bcp_manager._create_schema(connection, schema)
-                bcp_manager._create_table(
-                    connection=connection,
-                    schema=schema,
-                    table=table,
-                    columns=asset_schema.get_sql_columns(),
-                )
 
+        bcp_manager._bcp_stage(data, schema, staging_Table)
 
-        results = bcp_manager.load_bcp(
-            data=obj,
-            schema=schema,
-            table=io_table,
-            asset_schema=asset_schema,
-            add_row_hash=add_row_hash,
-            add_load_datetime=add_load_datetime,
-            add_load_uuid=add_load_uuid,
-            uuid=uuid,
-            process_datetime=process_datetime,
-            process_replacements=process_replacements,
-        )
-
-        uuid_value, row_count, deltas = (
-            results["uuid"],
-            results["row_count"],
-            results["schema_deltas"],
-        )
-        asset_schema_columns_str = ",".join(asset_schema.get_columns())
         with connect_mssql(bcp_manager.connection_config) as connection:
             cleanup_sql = get_cleanup_statement(table, schema, context)
             connection.exec_driver_sql(cleanup_sql)
-            connection.exec_driver_sql(
-                f"""
-                    INSERT INTO {schema}.{table} ({asset_schema_columns_str})
-                    SELECT {asset_schema_columns_str}
-                    FROM {schema}.{io_table}"""
+            row_count = bcp_manager._post_bcp_stage(
+                connection=connection,
+                data=obj,
+                schema=schema,
+                table=table,
+                staging_table=staging_Table,
+                asset_schema=asset_schema,
+                add_row_hash=add_row_hash,
+                process_replacements=process_replacements,
             )
-            connection.exec_driver_sql(f"DROP TABLE {schema}.{io_table}")
 
         context.add_output_metadata(
             dict(
@@ -159,10 +150,10 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
                     context,
                     (context.definition_metadata or {}).get("columns"),
                 ),
-                uuid_query=f"SELECT * FROM {schema}.{table} WHERE load_uuid = '{uuid_value}'",
+                uuid_query=f"SELECT * FROM {schema}.{table} WHERE load_uuid = '{uuid}'",
                 row_count=row_count,
             )
-            | deltas
+            | schema_deltas
         )
 
     @abstractmethod

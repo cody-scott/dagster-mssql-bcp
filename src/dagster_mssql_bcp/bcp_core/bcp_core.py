@@ -203,71 +203,97 @@ class BCPCore(ABC):
         if process_replacements is None:
             process_replacements = self.process_replacements
 
-        connection_config_dict = self.connection_config
-
         asset_schema = self._parse_asset_schema(schema, table, asset_schema)
-
-        if not isinstance(asset_schema, AssetSchema):
-            raise ValueError("Invalid Asset Schema provided")
-
-        data = self._rename_columns(data, asset_schema.get_rename_dict())
 
         if uuid is None:
             uuid = str(uuid4())
         uuid_table = uuid.replace("-", "_")
         staging_table = f"{table}_staging_{uuid_table}"
 
+        get_dagster_logger().debug('renaming columns')
+        data = self._rename_columns(data, asset_schema.get_rename_dict())
+
+        get_dagster_logger().debug('adding meta to asset schema')
         self._add_meta_to_asset_schema(
             asset_schema, add_row_hash, add_load_datetime, add_load_uuid
         )
 
-        with connect_mssql(connection_config_dict) as connection:
-            self._create_target_tables(
-                schema, table, asset_schema, staging_table, connection
-            )
-            
-            data = self._pre_start_hook(
-                data
-            )
-
+        with connect_mssql(self.connection_config) as connection:
+            get_dagster_logger().debug('pre-bcp stage')
             data, schema_deltas = self._pre_bcp_stage(
-                connection,
-                data,
-                schema,
-                table,
-                asset_schema,
-                add_row_hash,
-                add_load_datetime,
-                add_load_uuid,
-                uuid,
-                process_datetime,
-                process_replacements,
-            )
-
-            data = self._pre_bcp_stage_completed_hook(
-                data
+                connection=connection,
+                data=data,
+                schema=schema,
+                table=table,
+                asset_schema=asset_schema,
+                add_row_hash=add_row_hash,
+                add_load_datetime=add_load_datetime,
+                add_load_uuid=add_load_uuid,
+                uuid=uuid,
+                process_datetime=process_datetime,
+                process_replacements=process_replacements,
+                staging_table=staging_table,
             )
 
         self._bcp_stage(data, schema, staging_table)
 
-        new_line_count = self._post_bcp_stage(
-            data,
-            schema,
-            table,
-            staging_table,
-            asset_schema,
-            add_row_hash,
-            process_replacements,
-            connection_config_dict,
-        )
+        with connect_mssql(self.connection_config) as connection:
+            new_line_count = self._post_bcp_stage(
+                connection,
+                data,
+                schema,
+                table,
+                staging_table,
+                asset_schema,
+                add_row_hash,
+                process_replacements,
+            )
 
         return {
             "uuid": uuid,
+            "schema_table_name": f"{schema}.{table}",
             "row_count": new_line_count,
             "schema_deltas": schema_deltas,
         }
-    
+
     def _pre_bcp_stage(
+        self,
+        connection,
+        data,
+        schema,
+        table,
+        asset_schema,
+        add_row_hash,
+        add_load_datetime,
+        add_load_uuid,
+        uuid,
+        process_datetime,
+        process_replacements,
+        staging_table,
+    ):
+        
+        data = self._pre_prcessing_start_hook(data)
+        self._create_target_tables(
+            schema, table, asset_schema, staging_table, connection
+        )
+        data, schema_deltas = self._standarize_input_data(
+            connection,
+            data,
+            schema,
+            table,
+            asset_schema,
+            add_row_hash,
+            add_load_datetime,
+            add_load_uuid,
+            uuid,
+            process_datetime,
+            process_replacements,
+        )
+        data = self._pre_processing_complete_hook(data)
+
+        return data, schema_deltas
+
+    def _standarize_input_data(
         self,
         connection: Connection,
         data,
@@ -303,25 +329,27 @@ class BCPCore(ABC):
                 frame_columns, asset_schema.get_columns(), sql_structure
             )
 
-            # Filter columns that are not in the json schema (evolution)
+        # Filter columns that are not in the json schema (evolution)
         data = self._filter_columns(data, asset_schema.get_columns(True))
-        sql_structure = sql_structure or frame_columns
-        data = self._reorder_columns(data, sql_structure)
+        # sql_structure = sql_structure or frame_columns
+        data = self._reorder_columns(data, asset_schema.get_columns(True))
 
+        data = self._add_replacement_flag_column(data)
         if process_replacements:
             data = self._replace_values(data, asset_schema)
         if process_datetime:
             data = self._process_datetime(data, asset_schema)
 
         return data, schema_deltas
-    
+
     def _bcp_stage(self, data, schema, staging_table):
+        get_dagster_logger().debug('bcp stage')
         with TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             format_file = temp_dir / f"{staging_table}_format_file.fmt"
             error_file = temp_dir / f"{staging_table}_error_file.err"
             csv_file = self._save_csv(data, temp_dir, f"{staging_table}.csv")
-
+            
             self._generate_format_file(schema, staging_table, format_file)
             self._insert_with_bcp(
                 schema,
@@ -333,6 +361,7 @@ class BCPCore(ABC):
 
     def _post_bcp_stage(
         self,
+        connection: Connection,
         data,
         schema,
         table,
@@ -340,34 +369,33 @@ class BCPCore(ABC):
         asset_schema,
         add_row_hash,
         process_replacements,
-        connection_config_dict,
     ):
-        with connect_mssql(connection_config_dict) as con:
-            # Validate loads (counts of tables match)
-            new_line_count = self._validate_bcp_load(
-                con, schema, staging_table, None
+        get_dagster_logger().debug('post-bcp stage')
+        # Validate loads (counts of tables match)
+        new_line_count = self._validate_bcp_load(
+            connection, schema, staging_table, None
+        )
+
+        if process_replacements:
+            self._replace_temporary_tab_newline(
+                connection, schema, staging_table, asset_schema
             )
 
-            if process_replacements:
-                self._replace_temporary_tab_newline(
-                    con, schema, staging_table, asset_schema
-                )
-
-            if add_row_hash:
-                self._calculate_row_hash(
-                    con, schema, staging_table, asset_schema.get_hash_columns()
-                )
-
-            self._insert_and_drop_bcp_table(
-                con, schema, table, staging_table, asset_schema
+        if add_row_hash:
+            self._calculate_row_hash(
+                connection, schema, staging_table, asset_schema.get_hash_columns()
             )
+
+        self._insert_and_drop_bcp_table(
+            connection, schema, table, staging_table, asset_schema
+        )
 
         return new_line_count
 
-    def _pre_bcp_stage_completed_hook(self, dataframe):
+    def _pre_processing_complete_hook(self, dataframe):
         return dataframe
 
-    def _pre_start_hook(self, dataframe):
+    def _pre_prcessing_start_hook(self, dataframe):
         return dataframe
 
     def _parse_asset_schema(self, schema, table, asset_schema):
@@ -400,6 +428,14 @@ class BCPCore(ABC):
                 )
         elif isinstance(asset_schema, list):
             asset_schema = AssetSchema(asset_schema)
+        elif isinstance(asset_schema, AssetSchema):
+            asset_schema = asset_schema
+        else:
+            asset_schema = None
+
+        if asset_schema is None:
+            raise ValueError("No data table provided in metadata")
+        
         return asset_schema
 
     # region pre load
@@ -466,7 +502,7 @@ class BCPCore(ABC):
             connection,
             schema,
             staging_table,
-            asset_schema.get_sql_columns(True),
+            asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
         )
 
     @abstractmethod
@@ -703,6 +739,7 @@ class BCPCore(ABC):
         result = [row[0] for row in connection.execute(text(sql))]
         result = None if len(result) == 0 else result
         return result
+
     @abstractmethod
     def _add_identity_columns(self, data, asset_schema: AssetSchema):
         """
@@ -713,7 +750,7 @@ class BCPCore(ABC):
             asset_schema (AssetSchema): The schema that defines the identity columns.
         """
         raise NotImplementedError
-    
+
     @abstractmethod
     def _get_frame_columns(self, data) -> list[str]:
         """
@@ -922,6 +959,8 @@ class BCPCore(ABC):
         UPDATE {schema}.{table}
         SET
         {set_columns}
+        WHERE
+        should_process_replacements = 1
         """
 
         update_sql_str = update_sql.format(
@@ -1006,3 +1045,11 @@ class BCPCore(ABC):
         connection.execute(text(update_sql))
 
     # endregion
+
+    @abstractmethod
+    def _add_replacement_flag_column(self, data):
+        """
+        Adds a bit column, `should_replace`, to indicate if that row should have the REPLACE applied.
+        Replace is applied for tabs and new lines only
+        """
+        raise NotImplementedError

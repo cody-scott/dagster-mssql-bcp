@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 import pendulum
 
 try:
@@ -52,6 +51,27 @@ class PolarsBCP(BCPCore):
             if _ in asset_schema.get_numeric_columns()
         ]
 
+        string_cols = data.select(cs.by_dtype(pl.String)).collect_schema().names()
+
+        if len(string_cols) > 0:
+            # calculates only the rows that have replacements
+            data = data.with_columns(
+                [
+                    pl.col(_)
+                    .str.contains("(\t)|(\n)")
+                    .alias(f"{_}__bcp__has_replacement_values")
+                    for _ in string_cols
+                ]
+            )
+
+            data = data.with_columns(
+                pl.any_horizontal(
+                    [f"{_}__bcp__has_replacement_values" for _ in string_cols]
+                ).alias("should_process_replacements")
+            )
+
+            data = data.drop([f"{_}__bcp__has_replacement_values" for _ in string_cols])
+
         data = data.with_columns(
             [
                 pl.col(_)
@@ -59,7 +79,7 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("\n", "__NEWLINE__")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
-                for _ in data.select(cs.by_dtype(pl.String)).collect_schema().names()
+                for _ in string_cols
                 if _ not in number_columns_that_are_strings
             ]
             + [
@@ -69,7 +89,10 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("^NAN$", "")
                 for _ in number_columns_that_are_strings
             ]
-            + [pl.col(_).cast(pl.Int64) for _ in data.select(cs.boolean()).collect_schema().names()]
+            + [
+                pl.col(_).cast(pl.Int64)
+                for _ in data.select(cs.boolean()).collect_schema().names()
+            ]
         )
 
         return data
@@ -129,7 +152,9 @@ class PolarsBCP(BCPCore):
 
     def _reorder_columns(self, data: pl.LazyFrame, column_list: list[str]):
         """Reorder the data frame to match the order of the columns in the SQL table."""
-        column_list = [column for column in column_list if column in data.collect_schema().names()]
+        column_list = [
+            column for column in column_list if column in data.collect_schema().names()
+        ]
         return data.select(column_list)
 
     def _save_csv(self, data: pl.LazyFrame, path: Path, file_name: str):
@@ -155,9 +180,15 @@ class PolarsBCP(BCPCore):
         self, data: pl.LazyFrame, asset_schema: AssetSchema
     ) -> pl.LazyFrame:
         ident_cols = asset_schema.get_identity_columns()
-        missing_idents = [_ for _ in ident_cols if _ not in data.collect_schema().names()]
+        missing_idents = [
+            _ for _ in ident_cols if _ not in data.collect_schema().names()
+        ]
         data = data.with_columns([pl.lit(None).alias(_) for _ in missing_idents])
         return data
 
-    def _pre_start_hook(self, data: pl.DataFrame):
+    def _pre_prcessing_start_hook(self, data: pl.DataFrame):
         return data.lazy()
+
+    def _add_replacement_flag_column(self, data: pl.DataFrame):
+        data = data.with_columns(pl.lit(0).alias("should_process_replacements"))
+        return data
