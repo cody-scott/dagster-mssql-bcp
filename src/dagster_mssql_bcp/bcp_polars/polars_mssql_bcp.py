@@ -116,12 +116,13 @@ class PolarsBCP(BCPCore):
         dt_columns = (
             data.select(cs.datetime(), cs.date(), cs.time()).collect_schema().names()
         )
+        null_columns = data.select(cs.by_dtype(pl.Null)).collect_schema().names()
 
         data = data.with_columns(
             [
-                pl.col(_).str.to_datetime()
-                for _ in asset_schema.get_datetime_columns()
-                if _ not in dt_columns
+                pl.col(col).str.to_datetime()
+                for col in asset_schema.get_datetime_columns()
+                if col not in dt_columns and col not in null_columns
             ]
         )
 
@@ -135,7 +136,7 @@ class PolarsBCP(BCPCore):
             [
                 pl.col(_).dt.convert_time_zone("UTC")
                 for _ in asset_schema.get_datetime_columns()
-                if _ not in dt_columns_in_tz
+                if _ not in dt_columns_in_tz and _ not in null_columns
             ]
         )
 
@@ -146,6 +147,7 @@ class PolarsBCP(BCPCore):
                 .str.replace("Z", "+00:00")
                 .str.replace("T", " ")
                 for _ in asset_schema.get_datetime_columns()
+                if _ not in null_columns
             ]
         )
         return data

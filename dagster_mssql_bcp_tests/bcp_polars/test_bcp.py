@@ -377,13 +377,16 @@ class TestPolarsBCP:
         schema = polars_mssql_bcp.AssetSchema(
             [
                 {'name': 'a', 'type': 'DATETIME2'},
+                {'name': 'b', 'type': 'DATETIME2'}
             ]
         )
 
-        input = pl.datetime_range(datetime.datetime(2021,1,1), datetime.datetime(2021,1,3), eager=True).alias('a').to_frame().lazy()
+        input = pl.datetime_range(datetime.datetime(2021,1,1), datetime.datetime(2021,1,3), eager=True).alias('a').to_frame()
+        input = input.with_columns(pl.lit(None).alias('b'))
+        input = input.lazy()
         df = polars_io._process_datetime(input, schema).collect()
         expected = pl.DataFrame(
-            {'a': ["2021-01-01 00:00:00+00:00", "2021-01-02 00:00:00+00:00", "2021-01-03 00:00:00+00:00"]}
+            {'a': ["2021-01-01 00:00:00+00:00", "2021-01-02 00:00:00+00:00", "2021-01-03 00:00:00+00:00"], 'b': [None, None, None]}
         )
         pl_testing.assert_frame_equal(df, expected)
 
