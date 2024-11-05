@@ -219,7 +219,6 @@ class BCPCore(ABC):
         )
 
         with connect_mssql(self.connection_config) as connection:
-            get_dagster_logger().debug('pre-bcp stage')
             data, schema_deltas = self._pre_bcp_stage(
                 connection=connection,
                 data=data,
@@ -271,7 +270,7 @@ class BCPCore(ABC):
         process_replacements,
         staging_table,
     ):
-        
+        get_dagster_logger().info('preprocessing stage')
         data = self._pre_prcessing_start_hook(data)
         self._create_target_tables(
             schema, table, asset_schema, staging_table, connection
@@ -348,6 +347,7 @@ class BCPCore(ABC):
             temp_dir = Path(temp_dir)
             format_file = temp_dir / f"{staging_table}_format_file.fmt"
             error_file = temp_dir / f"{staging_table}_error_file.err"
+            get_dagster_logger().info('saving data to csv')
             csv_file = self._save_csv(data, temp_dir, f"{staging_table}.csv")
             
             self._generate_format_file(schema, staging_table, format_file)
@@ -998,7 +998,7 @@ class BCPCore(ABC):
         schema_with_cast = asset_schema.get_sql_columns_with_cast()
         schema_with_cast_str = ", ".join(schema_with_cast)
 
-        get_dagster_logger().debug("Inserting data and dropping BCP table")
+        get_dagster_logger().debug("Inserting data")
         insert_sql = f"""
         INSERT INTO {schema}.{table} ({schema_columns_str})
         SELECT {schema_with_cast_str} FROM {schema}.{bcp_table}
@@ -1013,6 +1013,7 @@ class BCPCore(ABC):
                 )
             )
         )
+        get_dagster_logger().debug("dropping BCP table")
         connection.execute(text(f"DROP TABLE {schema}.{bcp_table}"))
 
     def _calculate_row_hash(
@@ -1030,6 +1031,7 @@ class BCPCore(ABC):
         Returns:
             None
         """
+        get_dagster_logger().info('Calculating row hash')
         col_sql = [
             f"COALESCE(CAST({column} AS NVARCHAR(MAX)), '')" for column in columns
         ]
