@@ -169,7 +169,7 @@ class TestPolarsBCPIO:
             asset_key=[schema, table],
             definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
-            io_manager.handle_output(ctx, data)
+            r = io_manager.handle_output(ctx, data)
         with build_output_context(
             asset_key=[schema, table],
             definition_metadata={"asset_schema": asset_schema, "schema": schema},
@@ -527,4 +527,29 @@ class TestPolarsBCPIO:
         materialize(
             assets=[my_asset],
             resources={"io_manager": io_manager},
+        )
+
+
+    def test_load_input(self):
+        io_manager = self.io()
+        @asset(key_prefix=['dbo'])
+        def polars_base_asset():
+            with self.connect_mssql() as connection:
+                connection.exec_driver_sql(
+                    'DROP TABLE IF EXISTS dbo.polars_base_asset'
+                )
+                connection.exec_driver_sql(
+                    "SELECT 1 as col1, 'b' as col2 INTO dbo.polars_base_asset"
+                )
+
+        @asset(key_prefix=['dbo'], io_manager_key='io_manager')
+        def load_input_asset(polars_base_asset: pl.DataFrame):
+            ...
+
+        materialize(
+            assets=[
+                polars_base_asset,
+                load_input_asset
+            ],
+            resources={'io_manager': io_manager}
         )
