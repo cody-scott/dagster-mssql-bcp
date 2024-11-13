@@ -16,6 +16,8 @@ from .utils import get_cleanup_statement, get_select_statement
 
 from .bcp_core import BCPCore
 
+from sqlalchemy import URL
+
 
 class BCPIOManagerCore(ConfigurableIOManager, ABC):
     host: str
@@ -62,8 +64,40 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             load_datetime_column_name=self.load_datetime_column_name,
         )
 
-    @abstractmethod
     def load_input(self, context: InputContext):
+        asset_key = context.asset_key
+        schema, table = asset_key.path[-2], asset_key.path[-1]
+
+        _sql = get_select_statement(
+            table,
+            schema,
+            context,
+            (context.definition_metadata or {}).get("columns"),
+        )
+
+        bcp_manager = self.get_bcp(
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            username=self.username,
+            password=self.password,
+            driver=self.driver,
+            bcp_arguments=self.bcp_arguments,
+            query_props=self.query_props,
+            add_row_hash=self.add_row_hash,
+            add_load_datetime=self.add_load_datetime,
+            add_load_uuid=self.add_load_uuid,
+            bcp_path=self.bcp_path,
+        )
+
+        connection_str = URL(**
+            bcp_manager.connection_config
+        ).render_as_string(hide_password=False)
+
+        return self._read_from_database(sql=_sql, connection_string=connection_str)
+
+    @abstractmethod
+    def _read_from_database(self, sql: str, connection_string: str):
         raise NotImplementedError
 
     def handle_output(self, context: OutputContext, obj):
