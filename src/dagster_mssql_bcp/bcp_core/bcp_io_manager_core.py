@@ -5,6 +5,8 @@ from dagster import (
     InputContext,
     OutputContext,
     get_dagster_logger,
+    TableColumn,
+    TableSchema
 )
 
 from abc import abstractmethod, ABC
@@ -142,6 +144,19 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
                 process_replacements=process_replacements,
             )
 
+        meta_tbl = []
+        for _ in asset_schema.get_sql_columns_as_dict(False):
+            
+            meta_tbl.append(
+                TableColumn(
+                    name=_['name'],
+                    type=_['type']
+                )
+            )
+        meta_schema = TableSchema(
+            columns=meta_tbl
+        )
+
         context.add_output_metadata(
             dict(
                 query=get_select_statement(
@@ -153,6 +168,9 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
                 uuid_query=f"SELECT * FROM {schema}.{table} WHERE load_uuid = '{uuid}'",
                 row_count=row_count,
             )
+            | {
+                "dagster/column_schema": meta_schema
+            }
             | schema_deltas
         )
 

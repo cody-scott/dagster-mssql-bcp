@@ -169,7 +169,7 @@ class TestPolarsBCPIO:
             asset_key=[schema, table],
             definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
-            io_manager.handle_output(ctx, data)
+            r = io_manager.handle_output(ctx, data)
         with build_output_context(
             asset_key=[schema, table],
             definition_metadata={"asset_schema": asset_schema, "schema": schema},
