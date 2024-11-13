@@ -273,38 +273,9 @@ class AssetSchema:
         return columns
 
     def get_sql_columns(self, staging: bool | None = None) -> list[str]:
-        if staging is None:
-            staging = False
+        cols = self.get_sql_columns_as_dict(staging=staging)
 
-        columns = []
-        for column in self.schema:
-            to_add = None
-
-            column_name = self._resolve_name(column)
-            data = column
-            data_type = self._resolve_type(data)
-
-            if staging and data_type in self._stage_as_binary:
-                data_type = "VARBINARY"
-
-            if data_type in (self.text_column_types + self.binary_column_types):
-                length = data.get("length", "MAX")
-                to_add = f"{column_name} {data_type}({length})"
-
-            elif data_type in self.decimal_column_types:
-                precision = data.get("precision", 18)
-                scale = data.get("scale", 0)
-                to_add = f"{column_name} {data_type}({precision}, {scale})"
-
-            else:
-                to_add = f"{column_name} {data_type}"
-
-            if data.get("identity", False):
-                to_add += " IDENTITY(1,1)"
-
-            columns.append(to_add)
-
-        return columns
+        return [f"{_['name']} {_['type']}" for _ in cols]
 
     def get_rename_dict(self) -> dict[str, str]:
         return {column["name"]: self._resolve_name(column) for column in self.schema}
