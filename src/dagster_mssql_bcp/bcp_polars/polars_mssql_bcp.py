@@ -79,6 +79,7 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("\n", "__NEWLINE__")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
+                .str.replace_all('^""$', "")
                 for _ in string_cols
                 if _ not in number_columns_that_are_strings
             ]
@@ -87,6 +88,7 @@ class PolarsBCP(BCPCore):
                 .str.replace_all(",", "")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
+                .str.replace_all('^""$', "")
                 for _ in number_columns_that_are_strings
             ]
             + [
@@ -94,6 +96,8 @@ class PolarsBCP(BCPCore):
                 for _ in data.select(cs.boolean()).collect_schema().names()
             ]
         )
+
+        # data = data.with_columns(pl.col(pl.String).replace("", None))
 
         return data
 
@@ -128,6 +132,14 @@ class PolarsBCP(BCPCore):
 
         date_cols = data.select(cs.date()).collect_schema().names()
         data = data.with_columns([pl.col(_) for _ in date_cols])
+
+        # change date/time to datetime
+        data = data.with_columns(
+            [
+                pl.col(_).cast(pl.Datetime)
+                for _ in data.select(cs.date()).collect_schema().names()
+            ]
+        )
 
         dt_columns_in_tz = (
             data.select(cs.datetime(time_zone="*")).collect_schema().names()
