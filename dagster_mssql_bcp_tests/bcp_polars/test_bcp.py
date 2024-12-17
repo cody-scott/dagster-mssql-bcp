@@ -276,13 +276,13 @@ class TestPolarsBCP:
         expected = pl.DataFrame(
             {
                 "c": [
-                    '',
-                    '',
+                    None,
+                    None,
                     "c",
                     "abc__TAB__def",
                     "abc__TAB____NEWLINE__def",
                     "abc__NEWLINE__def",
-                    '',
+                    None,
                     "somenanthing",
                 ],
                 "should_process_replacements": [0, 0, 0, 1, 1, 1, 0, 0],
@@ -337,7 +337,7 @@ class TestPolarsBCP:
             [{"name": "a", "type": "NVARCHAR", "length": 20}]
         )
         df = pl.DataFrame({"a": ['""', "a", '', '"adsf"']})
-        expected = pl.DataFrame({"a": ['', "a", '', '"adsf"'], "should_process_replacements": [0,0,0,0]})
+        expected = pl.DataFrame({"a": [None, "a", None, '"adsf"'], "should_process_replacements": [0,0,0,0]})
         df = polars_io._replace_values(df, schema)
         pl_testing.assert_frame_equal(df, expected)
 

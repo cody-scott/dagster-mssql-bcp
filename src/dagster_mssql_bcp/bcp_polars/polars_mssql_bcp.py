@@ -97,7 +97,7 @@ class PolarsBCP(BCPCore):
             ]
         )
 
-        # data = data.with_columns(pl.col(pl.String).replace("", None))
+        data = data.with_columns(pl.col(pl.String).replace("", None))
 
         return data
 

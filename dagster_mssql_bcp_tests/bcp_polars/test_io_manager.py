@@ -379,8 +379,8 @@ class TestPolarsBCPIO:
 
         data = pl.DataFrame(
             {
-                "a": [1, 1],
-                "b": ["a\t\nb", "a\t\tb"],
+                "a": [1, 1, 1],
+                "b": ["a\t\nb", "a\t\tb", ""],
             }
         )
 
@@ -392,7 +392,7 @@ class TestPolarsBCPIO:
         )
         with self.connect_mssql() as connection:
             data = connection.exec_driver_sql(f'SELECT * FROM {schema}.{table}')
-            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb')]
+            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb'), (1, None)]
 
     def test_absent_identity(self):
         schema = "test_polars_bcp_schema"
