@@ -387,8 +387,8 @@ class TestPandasBCPIO:
 
         data = pd.DataFrame(
             {
-                "a": [1, 1],
-                "b": ["a\t\nb", "a\t\tb"],
+                "a": [1, 1, 1],
+                "b": ["a\t\nb", "a\t\tb", ""],
             }
         )
 
@@ -400,7 +400,7 @@ class TestPandasBCPIO:
         with self.connect_mssql() as connection:
             data = connection.exec_driver_sql(
                 f'SELECT * FROM {schema}.{table}')
-            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb')]
+            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb'), (1, None)]
 
     def test_absent_identity(self):
         schema = "test_pandas_bcp_schema"
