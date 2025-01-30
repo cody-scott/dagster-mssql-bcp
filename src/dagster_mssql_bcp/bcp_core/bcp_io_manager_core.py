@@ -1,5 +1,5 @@
 from uuid import uuid4
-
+from typing import Any
 from dagster import (
     ConfigurableIOManager,
     InputContext,
@@ -26,7 +26,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
     username: str | None = None
     password: str | None = None
     driver: str = "ODBC Driver 18 for SQL Server"
-    query_props: dict[str, str] = {}
+    query_props: dict[str, Any] = {}
 
     add_row_hash: bool = True
     add_load_datetime: bool = True

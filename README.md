@@ -84,7 +84,7 @@ def my_polars_asset_lazy(context):
 
 defs = Definitions(
     assets=[my_polars_asset, my_polars_asset_lazy],
-    io_managers={
+    resources={
         "io_manager": io_manager,
     },
 )
@@ -124,7 +124,7 @@ def my_pandas_asset(context):
 
 defs = Definitions(
     assets=[my_pandas_asset],
-    io_managers={
+    resources={
         "io_manager": io_manager,
     },
 )

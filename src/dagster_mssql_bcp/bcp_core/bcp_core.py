@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -31,7 +33,7 @@ class BCPCore(ABC):
     username: str | None
     password: str | None
 
-    query_props: dict[str, str]
+    query_props: dict[str, Any]
 
     bcp_arguments: dict[str, str] = {}
     bcp_path: str | None
@@ -102,6 +104,8 @@ class BCPCore(ABC):
         self.add_load_uuid = add_load_uuid
 
         self.driver = driver
+
+        query_props = self._convert_query_props_to_string(query_props)
         self.query_props = query_props
 
         self.bcp_arguments = bcp_arguments
@@ -119,6 +123,27 @@ class BCPCore(ABC):
         self.load_uuid_column_name = load_uuid_column_name
         self.load_datetime_column_name = load_datetime_column_name
 
+    def _convert_query_props_to_string(self, query_props):
+        """This maps boolean properties to the yes or no values
+        Because of the underlying YAML in dagster launch pad it converts yes/no to boolean.
+        For the defined properties, this maps it back to the proper Yes/No.
+
+        https://learn.microsoft.com/en-us/sql/relational-databases/native-client/applications/using-connection-string-keywords-with-sql-server-native-client?view=sql-server-ver15
+        """
+        mappings = {
+            "multisubnetfailover": {True: 'Yes', False: 'No'}
+        }
+        for _ in query_props:
+            prop_value = query_props[_]
+            if _.lower() in mappings:
+                prop_value = mappings[_.lower()].get(prop_value)
+            elif isinstance(prop_value, bool):
+                prop_value = "yes" if prop_value else 'no'
+
+            query_props[_] = prop_value
+
+        return query_props
+    
     @property
     def config(self):
         return dict(
