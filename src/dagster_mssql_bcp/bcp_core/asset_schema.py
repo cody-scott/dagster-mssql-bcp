@@ -1,4 +1,5 @@
 from sqlalchemy import Connection, text
+import copy
 
 schema_spec = {
     "type": "array",
@@ -94,7 +95,7 @@ class AssetSchema:
     )
 
     def __init__(self, schema: list[dict]):
-        self.schema = schema
+        self.schema = [copy.deepcopy(_) for _ in schema]
         self.validate_asset_schema()
 
     def __eq__(self, value: "AssetSchema") -> bool:
