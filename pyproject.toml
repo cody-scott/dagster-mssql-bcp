@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dagster-mssql-bcp"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
     "dagster",
     "pendulum",
     "pyodbc",
     "polars",
     "pandas",
-    "connectorx",
+    "connectorx<=0.4.1",
     "pyarrow"
 ]
 
