@@ -858,6 +858,7 @@ class BCPCore(ABC):
         format_cmd = f"""{self.bcp_path} [{schema}].[{table}] format nul {args_str}"""
         result = execute_shell_command(format_cmd, "STREAM", BCPLogger("BCP"))
         if result[1] != 0:
+            get_dagster_logger().error(result[0])
             raise RuntimeError("Non-zero exit code for bcp format file generation")
 
     def _insert_with_bcp(
@@ -898,9 +899,11 @@ class BCPCore(ABC):
 
             results = execute_shell_command(insert_cmd, "STREAM", BCPLogger("BCP"))
             if "Error" in results[0]:
+                get_dagster_logger().error(results[0])
                 raise RuntimeError("BCP failure")
 
             if results[1] != 0:
+                get_dagster_logger().error(results[0])
                 raise RuntimeError("Non-zero exit code for bcp")
 
         except RuntimeError as ae:
