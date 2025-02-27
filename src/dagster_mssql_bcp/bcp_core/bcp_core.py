@@ -1092,6 +1092,8 @@ class BCPCore(ABC):
         Extract the collation components from the format file and replace them with `""`.
         This allows the collation to be supplied by the `-C` argument, instead of being
         override by the format file.
+
+        This solves the issue of loading values with accents to SQL Server
         """
 
         regex_pattern = r'^\d.{10,}\s(\w+)$'
