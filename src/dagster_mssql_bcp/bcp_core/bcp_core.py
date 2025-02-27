@@ -847,6 +847,7 @@ class BCPCore(ABC):
         get_dagster_logger().debug("Generating BCP format file")
         bcp_args = {
             "-c": "",
+            "-C": '65001',
             "-t": '"\t"',
             "-r": '"\n"',
             "-f": f'"{str(format_file_path)}"',
@@ -882,6 +883,7 @@ class BCPCore(ABC):
             get_dagster_logger().debug("Inserting data with BCP")
             bcp_args = {
                 "-c": "",
+                "-C": '65001',
                 "-t": '"\t"',
                 "-r": '"\n"',
                 "-f": f'"{str(format_file_path)}"',
@@ -1080,3 +1082,27 @@ class BCPCore(ABC):
         Replace is applied for tabs and new lines only
         """
         raise NotImplementedError
+
+
+    def _remove_collation_from_format_file(self, format_file: Path):
+        """
+        Extract the collation components from the format file and replace them with `""`.
+        This allows the collation to be supplied by the `-C` argument, instead of being
+        override by the format file.
+        """
+
+        regex_pattern = r'^\d.{10,}\s(\w+)$'
+        regex_pattern = re.compile(regex_pattern)
+
+        out_data = []
+        with format_file.open() as fl:
+            for _ in fl.readlines():
+                match_obj = re.match(regex_pattern, _)
+                if match_obj is not None:
+                    val = match_obj.group(1)
+                    _ = _.replace(val, '""')
+                out_data.append(_)
+
+        out_data = "".join(out_data)
+        with format_file.open('w') as fl:
+            fl.write(out_data)
