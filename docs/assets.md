@@ -57,6 +57,7 @@ asset_schema = [
     {'name': 'column_b', 'type': 'NVARCHAR', length: 20}
     {'name': 'column_c', 'type': 'DECIMAL', precision: 18, scale: 3}
     {'name': 'MyColumn', 'alias': 'column_d' 'type': 'DATETIME2'}
+    {'name': 'ident_col', 'alias': 'identity_column' 'type': 'INT', 'identity': True}
 ]
 
 ```

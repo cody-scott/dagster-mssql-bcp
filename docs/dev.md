@@ -40,6 +40,16 @@ implementing this class requires the following methods:
 
     Save the dataframe to a CSV file.
 
+* `_add_identity_columns`
+
+    Adds missing identity columns to the dataset if they are omitted on delivery
+
+* `_add_replacement_flag_column`
+
+    Adds a bit column to indicate if that row should take place in the replacement.
+    This is used to update the tab and new line removal from a string
+
+
 ## BCP IO Manager
 
 The IO manager is a wrapper around the BCP core. This is the class that should be used in the dagster pipeline. This class should be inherited and the `bcp` method should be implemented. This method should return the data to be loaded.
