@@ -11,7 +11,7 @@ dependencies = [
     "pyodbc",
     "polars",
     "pandas",
-    "connectorx<=0.4.1",
+    "connectorx",
     "pyarrow"
 ]
 
