@@ -80,6 +80,8 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
                 .str.replace_all('^""$', "")
+                .str.replace_all('^NULL$', "")
+                .str.replace_all('^null$', "")
                 for _ in string_cols
                 if _ not in number_columns_that_are_strings
             ]

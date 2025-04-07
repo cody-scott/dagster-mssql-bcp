@@ -16,6 +16,8 @@ import datetime
 
 from ..fixtures import format_files
 from pathlib import Path
+
+
 class TestPolarsBCP:
     @pytest.fixture
     def polars_io(self):
@@ -337,10 +339,28 @@ class TestPolarsBCP:
         schema = polars_mssql_bcp.AssetSchema(
             [{"name": "a", "type": "NVARCHAR", "length": 20}]
         )
-        df = pl.DataFrame({"a": ['""', "a", '', '"adsf"']})
-        expected = pl.DataFrame({"a": [None, "a", None, '"adsf"'], "should_process_replacements": [0,0,0,0]})
+        df = pl.DataFrame({"a": ['""', "a", "", '"adsf"']})
+        expected = pl.DataFrame(
+            {
+                "a": [None, "a", None, '"adsf"'],
+                "should_process_replacements": [0, 0, 0, 0],
+            }
+        )
         df = polars_io._replace_values(df, schema)
         pl_testing.assert_frame_equal(df, expected)
+
+
+        input = pl.DataFrame({"has_null": ["NULL", 'null', None, "2021-01-01"]})
+        expected = pl.DataFrame({"has_null": [None, None, None, "2021-01-01"]})
+
+        schema = polars_mssql_bcp.AssetSchema(
+            [
+                {"name": "has_null", "type": "DATETIME2"},
+            ]
+        )
+        df =  polars_io._replace_values(input.lazy(), schema).collect()
+        pl_testing.assert_frame_equal(df.select('has_null'), expected)
+
 
     def test_process_datetime(self, polars_io: polars_mssql_bcp.PolarsBCP):
         input = pl.DataFrame(
@@ -596,13 +616,14 @@ class TestPolarsBCP:
         df = polars_io._filter_columns(df, schema.get_columns())
         assert df.columns == ["a", "b", "c"]
 
-
-    def test_remove_collation_from_format_file(self, monkeypatch, polars_io: polars_mssql_bcp.PolarsBCP):
+    def test_remove_collation_from_format_file(
+        self, monkeypatch, polars_io: polars_mssql_bcp.PolarsBCP
+    ):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
-            temp_format_file = temp_dir / 'format.fmt'
+            temp_format_file = temp_dir / "format.fmt"
 
-            with open(temp_format_file,'w') as fl:
+            with open(temp_format_file, "w") as fl:
                 fl.write(format_files.format_file_content)
 
             polars_io._remove_collation_from_format_file(temp_format_file)
