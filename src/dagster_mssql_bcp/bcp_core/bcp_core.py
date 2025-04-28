@@ -238,7 +238,6 @@ class BCPCore(ABC):
         get_dagster_logger().debug('renaming columns')
         data = self._rename_columns(data, asset_schema.get_rename_dict())
 
-        get_dagster_logger().debug('adding meta to asset schema')
         self._add_meta_to_asset_schema(
             asset_schema, add_row_hash, add_load_datetime, add_load_uuid
         )
@@ -296,7 +295,9 @@ class BCPCore(ABC):
         staging_table,
     ):
         get_dagster_logger().info('preprocessing stage')
-        data = self._pre_prcessing_start_hook(data)
+        
+        get_dagster_logger().debug('running prehook')
+        data = self._pre_processing_start_hook(data)
         self._create_target_tables(
             schema, table, asset_schema, staging_table, connection
         )
@@ -335,6 +336,9 @@ class BCPCore(ABC):
         This step is responsible for preparing the data for the BCP stage.
         This includes renaming and reformating columns, adding metadata columns, and validating the schema.
         """
+        get_dagster_logger().debug('Standarizing input frame for bcp')
+        
+        get_dagster_logger().debug('Adding meta columns to frame')
         data = self._add_meta_columns(
             data,
             uuid_value=uuid,
@@ -342,6 +346,8 @@ class BCPCore(ABC):
             add_datetime=add_load_datetime,
             add_uuid=add_load_uuid,
         )
+
+        get_dagster_logger().debug('Adding identity columns to frame')
         data = self._add_identity_columns(data=data, asset_schema=asset_schema)
 
         sql_structure = self._get_sql_columns(connection, schema, table)
@@ -349,19 +355,23 @@ class BCPCore(ABC):
 
         schema_deltas = {}
         if sql_structure is not None:
+            get_dagster_logger().debug('Validating schemas')
             schema_deltas = self._validate_columns(
                 frame_columns, asset_schema.get_columns(), sql_structure
             )
 
-        # Filter columns that are not in the json schema (evolution)
+        get_dagster_logger().debug('Dropping undefined columns in asset schema from frame')
         data = self._filter_columns(data, asset_schema.get_columns(True))
-        # sql_structure = sql_structure or frame_columns
+        
+        get_dagster_logger().debug('Re-ordering columns to match SQL table')
         data = self._reorder_columns(data, asset_schema.get_columns(True))
 
         data = self._add_replacement_flag_column(data)
         if process_replacements:
+            get_dagster_logger().debug('Replacing column values')
             data = self._replace_values(data, asset_schema)
         if process_datetime:
+            get_dagster_logger().debug('Processing date and time columns')
             data = self._process_datetime(data, asset_schema)
 
         return data, schema_deltas
@@ -420,7 +430,7 @@ class BCPCore(ABC):
     def _pre_processing_complete_hook(self, dataframe):
         return dataframe
 
-    def _pre_prcessing_start_hook(self, dataframe):
+    def _pre_processing_start_hook(self, dataframe):
         return dataframe
 
     def _parse_asset_schema(self, schema, table, asset_schema):
@@ -480,6 +490,8 @@ class BCPCore(ABC):
         Returns:
             AssetSchema: The updated asset schema with the added metadata columns.
         """
+        get_dagster_logger().debug('adding meta to asset schema')
+
         schema_columns = asset_schema.get_columns()
         if add_row_hash and self.row_hash_column_name not in schema_columns:
             asset_schema.add_column(
@@ -521,7 +533,10 @@ class BCPCore(ABC):
             table,
             asset_schema.get_sql_columns(),
         )
+
+        get_dagster_logger().debug(f'Dropping existing staging table {schema}.{staging_table}')
         connection.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"'))
+
         # problem is this is creating a table with identity but we have filtered out the identity column
         self._create_table(
             connection,
@@ -704,7 +719,7 @@ class BCPCore(ABC):
             connection (Connection): The database connection object.
             schema (str): The name of the schema to be created.
         """
-
+        get_dagster_logger().debug('Create schema if not existing')
         sql = f"""
         IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schema}')
         BEGIN
@@ -730,6 +745,7 @@ class BCPCore(ABC):
         Returns:
             None
         """
+        get_dagster_logger().debug(f'Creating table {schema}.{table}...')
         column_list = columns
 
         column_list_str = ",\n".join(column_list)

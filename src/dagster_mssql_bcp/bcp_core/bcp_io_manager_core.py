@@ -146,6 +146,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             add_load_uuid=add_load_uuid,
         )
 
+        get_dagster_logger().debug('Connecting to sql...')
         with connect_mssql(bcp_manager.connection_config) as connection:
             data, schema_deltas = bcp_manager._pre_bcp_stage(
                 connection=connection,
@@ -164,6 +165,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
 
         bcp_manager._bcp_stage(data, schema, staging_Table)
 
+        get_dagster_logger().debug('Connecting to sql...')
         with connect_mssql(bcp_manager.connection_config) as connection:
             cleanup_sql = get_cleanup_statement(table, schema, context)
             connection.exec_driver_sql(cleanup_sql)
