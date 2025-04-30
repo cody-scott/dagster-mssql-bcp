@@ -534,15 +534,6 @@ class BCPCore(ABC):
     def _create_target_tables(
         self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
-        # target db
-        self._create_schema(connection, self.database, schema)
-        self._create_table(
-            connection,
-            self.database,
-            schema,
-            table,
-            asset_schema.get_sql_columns(),
-        )
 
         # staging
         if self.database != self.staging_database:
@@ -558,6 +549,15 @@ class BCPCore(ABC):
             schema,
             staging_table,
             asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
+        )
+        # target db
+        self._create_schema(connection, self.database, schema)
+        self._create_table(
+            connection,
+            self.database,
+            schema,
+            table,
+            asset_schema.get_sql_columns(),
         )
 
     @abstractmethod

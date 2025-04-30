@@ -196,7 +196,7 @@ class TestPolarsBCPIO:
         io_manager = self.io_stagingdb()
 
         schema = "test_polars_bcp_schema"
-        table = "test_polars_bcp_table_io_handle_output"
+        table = "test_polars_bcp_table_io_handle_output_stg"
 
         create_schema = f"""
         IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '{schema}')
