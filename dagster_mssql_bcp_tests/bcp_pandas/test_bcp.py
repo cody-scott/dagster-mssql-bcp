@@ -343,13 +343,13 @@ class TestPandasBCP:
             """
             conn.exec_driver_sql(sql)
             columns = pandas_io._get_sql_columns(
-                conn, "test", "pandas_test_sql_columns"
+                conn, pandas_io.database, "test", "pandas_test_sql_columns"
             )
             assert columns == ["a", "b", "c"]
             self.cleanup_table(conn, "test", "pandas_test_sql_columns")
 
             columns = pandas_io._get_sql_columns(
-                conn, "test", "pandas_test_sql_columns"
+                conn, pandas_io.database, "test", "pandas_test_sql_columns"
             )
             assert columns is None
 
@@ -374,12 +374,13 @@ class TestPandasBCP:
 
             pandas_io._create_table(
                 conn,
+                pandas_io.database,
                 "test",
                 "pandas_test_create_table",
                 schema.get_sql_columns(),
             )
             columns = pandas_io._get_sql_columns(
-                conn, "test", "pandas_test_create_table"
+                conn, pandas_io.database, "test", "pandas_test_create_table"
             )
             assert columns == ["a", "b", "c", "row_hash", "load_uuid", "load_datetime"]
             self.cleanup_table(conn, "test", "pandas_test_create_table")
@@ -388,10 +389,11 @@ class TestPandasBCP:
             schema.add_column(load_uuid_col)
             schema.add_column(load_datetime_col)
 
-            pandas_io._create_table(conn, "test", "pandas_test_create_table", schema.get_sql_columns())
+            pandas_io._create_table(conn, pandas_io.database, "test", "pandas_test_create_table", schema.get_sql_columns())
 
             columns = pandas_io._get_sql_columns(
                 conn,
+                pandas_io.database,
                 "test",
                 "pandas_test_create_table",
             )

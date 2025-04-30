@@ -19,3 +19,4 @@ fi
 echo "Database is up and running"
 
 /opt/mssql-tools18/bin/sqlcmd -C -S $TARGET_DB__HOST,$TARGET_DB__PORT -U $TARGET_DB__USERNAME -P $TARGET_DB__PASSWORD -Q "CREATE DATABASE $TARGET_DB__DATABASE"
+/opt/mssql-tools18/bin/sqlcmd -C -S $TARGET_DB__HOST,$TARGET_DB__PORT -U $TARGET_DB__USERNAME -P $TARGET_DB__PASSWORD -Q "CREATE DATABASE staging"

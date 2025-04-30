@@ -58,6 +58,21 @@ class TestPolarsBCPIO:
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
+    
+    def io_stagingdb(self):
+        return polars_mssql_io_manager.PolarsBCPIOManager(
+            host=os.getenv("TARGET_DB__HOST", ""),
+            port=os.getenv("TARGET_DB__PORT", "1433"),
+            database=os.getenv("TARGET_DB__DATABASE", ""),
+            username=os.getenv("TARGET_DB__USERNAME", ""),
+            password=os.getenv("TARGET_DB__PASSWORD", ""),
+            query_props={
+                "TrustServerCertificate": "yes",
+            },
+            bcp_arguments={"-u": ""},
+            bcp_path="/opt/mssql-tools18/bin/bcp",
+            staging_database="staging"
+        )
 
     def test_handle_output_basic(self):
         # setup
@@ -176,6 +191,130 @@ class TestPolarsBCPIO:
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
+    def test_handle_output_basic_stg(self):
+        # setup
+        io_manager = self.io_stagingdb()
+
+        schema = "test_polars_bcp_schema"
+        table = "test_polars_bcp_table_io_handle_output"
+
+        create_schema = f"""
+        IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '{schema}')
+        BEGIN
+            EXEC('CREATE SCHEMA {schema}')
+        END
+        """
+
+        drop = f"""DROP TABLE IF EXISTS {io_manager.database}.{schema}.{table}"""
+        use_sql = 'USE {db}'
+        with self.connect_mssql() as connection:
+            
+            connection.exec_driver_sql(use_sql.format(db=io_manager.staging_database))
+            connection.exec_driver_sql(create_schema)
+
+            connection.exec_driver_sql(use_sql.format(db=io_manager.database))
+            connection.exec_driver_sql(create_schema)
+            
+            connection.exec_driver_sql(drop)
+            connection.exec_driver_sql(drop + "_old")
+
+
+        # original structure
+        data = pl.DataFrame(
+            {
+                "a": [1, 1, 1],
+                "b": ["2", "2", "2"],
+                "c": ["a", "a", "Ö"],
+            }
+        )
+        asset_schema = [
+            {"name": "a", "alias": "a", "type": "INT", "identity": True},
+            {"name": "b", "type": "NVARCHAR", "length": 10},
+            {"name": "c", "type": "NVARCHAR", "length": 10},
+        ]
+
+        # first run
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            io_manager.handle_output(ctx, data)
+
+        # second run
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            io_manager.handle_output(ctx, data)
+
+        # add a column to delivery
+        data = pl.DataFrame(
+            {
+                "a": [1, 1, 1],
+                "b": ["2", "2", "2"],
+                "c": ["a", "a", "Ö"],
+                "z": ["z", "z", "z"],
+            }
+        )
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            io_manager.handle_output(ctx, data)
+
+        # add the column to table but dont update schema. Table should have column but not be filled.
+        with self.connect_mssql() as connection:
+            connection.execute(text(f"ALTER TABLE {io_manager.database}.{schema}.{table} ADD z NVARCHAR(10)"))
+
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            io_manager.handle_output(ctx, data)
+
+        # add column to schema - next run should fill data in
+        asset_schema += [{"name": "z", "type": "NVARCHAR", "length": 10}]
+
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            io_manager.handle_output(ctx, data)
+
+        with self.connect_mssql() as connection:
+            connection.execute(
+                text(f"""EXEC sp_rename '{schema}.{table}', '{table}_old'""")
+            )
+            connection.execute(
+                text(
+                    f"""
+                SELECT
+                    b,
+                    load_datetime,
+                    a,
+                    c,
+                    z,
+                    row_hash,
+                    load_uuid
+                INTO
+                    {io_manager.database}.{schema}.{table}
+                FROM
+                    {io_manager.database}.{schema}.{table}_old
+                """
+                )
+            )
+            connection.execute(text(f"DROP TABLE {io_manager.database}.{schema}.{table}_old"))
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            r = io_manager.handle_output(ctx, data)
+        with build_output_context(
+            asset_key=[schema, table],
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
+        ) as ctx:
+            io_manager.handle_output(ctx, data)
+
     def test_handle_output_time_partition(self):
         schema = "test_polars_bcp_schema"
         table = "asset_time_part"
@@ -185,6 +324,75 @@ class TestPolarsBCPIO:
             connection.execute(text(drop))
 
         io_manager = self.io()
+
+        asset_schema = [
+            {"name": "a", "alias": "a", "type": "INT", "identity": True},
+            {"name": "b", "type": "DATETIME2"},
+        ]
+
+        @asset(
+            name=table,
+            key_prefix=["data"],
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "partition_expr": "b",
+            },
+            partitions_def=DailyPartitionsDefinition(
+                start_date="2021-01-01", end_date="2021-01-03"
+            ),
+        )
+        def my_asset(context):
+            return data
+
+        # original structure
+        data = pl.DataFrame(
+            {
+                # "a": [1, 1],
+                "b": ["2021-01-01", "2021-01-01"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="2021-01-01",
+            resources={"io_manager": io_manager},
+        )
+
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["2021-01-02", "2021-01-02"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="2021-01-02",
+            resources={"io_manager": io_manager},
+        )
+
+        data = pl.DataFrame(
+            {
+                "a": [2, 2, 2],
+                "b": ["2021-01-01", "2021-01-01", "2021-01-02"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            partition_key="2021-01-01",
+            resources={"io_manager": io_manager},
+        )
+
+
+    def test_handle_output_time_partition_staging(self):
+        io_manager = self.io_stagingdb()
+
+        schema = "test_polars_bcp_schema"
+        table = "asset_time_part_stg"
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
 
         asset_schema = [
             {"name": "a", "alias": "a", "type": "INT", "identity": True},

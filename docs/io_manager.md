@@ -35,6 +35,7 @@ io_manager = PandasBCPIOManager(
         '-u': ''
     },
     bcp_path="/opt/mssql-tools18/bin/bcp",
+    staging_database=None
 )
 
 {'io_manager': io_manager}
@@ -78,6 +79,7 @@ These include the host, database, user, password, driver and query_props. These 
 * `password`: str -> The password to connect to the MSSQL server.
 * `driver`: str -> The driver to use to connect to the MSSQL server. Default is `ODBC Driver 18 for SQL Server`.
 * `query_props`: Dict[str, Any] -> The properties to pass to the pyodbc/sqlalchemy connection.
+* `staging_database`: str | None -> Optional staging database to ingest to. Will connect to db, but swap and insert to this as needed
 
 
 ### bcp arguments

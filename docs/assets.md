@@ -76,3 +76,8 @@ This assumes that what you define is **at minimum** what is sent.
 You are saying *"I expect column X"* by defining an entry in the schema. If it no longer appears in the delivery, the load fails.
 
 The input data and SQL tables can be be modified by adding new columns to either set. This sets a good boundary for schema migrations in the DB prior to schema migrations in the `asset schema`.
+
+## Staging Database
+
+the property `staging_database` allows you to define a different database then the target to load data to.
+The loader will ingestion the bcp table into the staging db, then insert from the staging db into your final database table.

@@ -42,6 +42,8 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
     load_uuid_column_name: str = "load_uuid"
     load_datetime_column_name: str = "load_datetime"
 
+    staging_database: str | None = None
+
     @property
     def config(self):
         return dict(
@@ -62,6 +64,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             row_hash_column_name=self.row_hash_column_name,
             load_uuid_column_name=self.load_uuid_column_name,
             load_datetime_column_name=self.load_datetime_column_name,
+            staging_database=self.staging_database
         )
 
     def load_input(self, context: InputContext):
@@ -88,6 +91,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             add_load_datetime=self.add_load_datetime,
             add_load_uuid=self.add_load_uuid,
             bcp_path=self.bcp_path,
+            staging_database=self.staging_database
         )
 
         connection_str = URL(**
@@ -105,7 +109,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             get_dagster_logger().info("No data to load")
             return
 
-        bcp_manager = self.get_bcp(**self.config)
+        bcp_manager = self.create_bcp_obj()
 
         metadata = (
             context.definition_metadata
@@ -219,3 +223,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
     def get_bcp(self, *args, **kwargs) -> BCPCore:
         """Returns an instance of the BCP class for the given connection details."""
         raise NotImplementedError
+
+    def create_bcp_obj(self):
+        """Returns an instance of the bcp class with the config parameters set"""
+        return self.get_bcp(**self.config)

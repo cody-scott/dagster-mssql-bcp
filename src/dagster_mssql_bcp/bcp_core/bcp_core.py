@@ -54,6 +54,8 @@ class BCPCore(ABC):
     _new_line_character: str = "__NEWLINE__"
     _tab_character: str = "__TAB__"
 
+    staging_database: str | None = None
+
     def __init__(
         self,
         host: str,
@@ -73,6 +75,7 @@ class BCPCore(ABC):
         row_hash_column_name: str = "row_hash",
         load_uuid_column_name: str = "load_uuid",
         load_datetime_column_name: str = "load_datetime",
+        staging_database: str | None = None
     ):
         """
         Initialize the BCP core configuration.
@@ -122,6 +125,11 @@ class BCPCore(ABC):
         self.row_hash_column_name = row_hash_column_name
         self.load_uuid_column_name = load_uuid_column_name
         self.load_datetime_column_name = load_datetime_column_name
+
+        if staging_database is None:
+            self.staging_database = database
+        else:
+            self.staging_database = staging_database
 
     def _convert_query_props_to_string(self, query_props):
         """This maps boolean properties to the yes or no values
@@ -350,7 +358,7 @@ class BCPCore(ABC):
         get_dagster_logger().debug('Adding identity columns to frame')
         data = self._add_identity_columns(data=data, asset_schema=asset_schema)
 
-        sql_structure = self._get_sql_columns(connection, schema, table)
+        sql_structure = self._get_sql_columns(connection, self.database, schema, table)
         frame_columns = self._get_frame_columns(data)
 
         schema_deltas = {}
@@ -526,20 +534,27 @@ class BCPCore(ABC):
     def _create_target_tables(
         self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
-        self._create_schema(connection, schema)
+        # target db
+        self._create_schema(connection, self.database, schema)
         self._create_table(
             connection,
+            self.database,
             schema,
             table,
             asset_schema.get_sql_columns(),
         )
 
+        # staging
+        if self.database != self.staging_database:
+            self._create_schema(connection, self.staging_database, schema)
+
         get_dagster_logger().debug(f'Dropping existing staging table {schema}.{staging_table}')
-        connection.execute(text(f'DROP TABLE IF EXISTS "{schema}"."{staging_table}"'))
+        connection.execute(text(f'DROP TABLE IF EXISTS "{self.staging_database}"."{schema}"."{staging_table}"'))
 
         # problem is this is creating a table with identity but we have filtered out the identity column
         self._create_table(
             connection,
+            self.staging_database,
             schema,
             staging_table,
             asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
@@ -712,7 +727,7 @@ class BCPCore(ABC):
         """
         return [item for item in first_set if item not in second_set]
 
-    def _create_schema(self, connection: Connection, schema: str):
+    def _create_schema(self, connection: Connection, database: str, schema: str):
         """
         Creates a schema in the database if it does not already exist.
         Args:
@@ -720,17 +735,21 @@ class BCPCore(ABC):
             schema (str): The name of the schema to be created.
         """
         get_dagster_logger().debug('Create schema if not existing')
+        use_db_sql = f"USE {database}"
+
         sql = f"""
         IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schema}')
         BEGIN
             EXEC('CREATE SCHEMA {schema}')
         END
         """
+        connection.execute(text(use_db_sql))
         connection.execute(text(sql))
 
     def _create_table(
         self,
         connection: Connection,
+        database: str,
         schema: str,
         table: str,
         columns: list[str],
@@ -750,9 +769,9 @@ class BCPCore(ABC):
 
         column_list_str = ",\n".join(column_list)
         sql = f"""
-        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}')
+        IF NOT EXISTS (SELECT * FROM {database}.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}')
         BEGIN
-        CREATE TABLE {schema}.{table} (
+        CREATE TABLE {database}.{schema}.{table} (
             {column_list_str}
         )
         END
@@ -760,7 +779,7 @@ class BCPCore(ABC):
         connection.execute(text(sql))
 
     def _get_sql_columns(
-        self, connection: Connection, schema: str, table: str
+        self, connection: Connection, database: str, schema: str, table: str
     ) -> list[str] | None:
         """
         Retrieves the column names of a specified table within a given schema from the database.
@@ -775,7 +794,7 @@ class BCPCore(ABC):
                               otherwise None if the table has no columns.
         """
         sql = f"""
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'
+        SELECT COLUMN_NAME FROM {database}.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'
         """
         result = [row[0] for row in connection.execute(text(sql))]
         result = None if len(result) == 0 else result
@@ -840,7 +859,7 @@ class BCPCore(ABC):
         if self.password is not None:
             bcp_args["-P"] = self.password
 
-        bcp_args["-d"] = self.database
+        bcp_args["-d"] = self.staging_database
         bcp_args["-S"] = f'"{self.host},{self.port}"'
 
         bcp_args = bcp_args | additional_args
@@ -962,7 +981,7 @@ class BCPCore(ABC):
             ValueError: If the validation fails or no result is returned from the query.
         """
         get_dagster_logger().debug("Validating BCP load")
-        validate_load_sql = f"SELECT COUNT(*) FROM {schema}.{bcp_table}"
+        validate_load_sql = f"SELECT COUNT(*) FROM {self.staging_database}.{schema}.{bcp_table}"
         cursor = connection.execute(
             text(validate_load_sql.format(schema=schema, table=bcp_table))
         )
@@ -1002,7 +1021,7 @@ class BCPCore(ABC):
             return
 
         update_sql = """
-        UPDATE {schema}.{table}
+        UPDATE {db}.{schema}.{table}
         SET
         {set_columns}
         WHERE
@@ -1010,6 +1029,7 @@ class BCPCore(ABC):
         """
 
         update_sql_str = update_sql.format(
+            db=self.staging_database,
             schema=schema,
             table=table,
             set_columns=",\n".join(update_sets),
@@ -1046,8 +1066,8 @@ class BCPCore(ABC):
 
         get_dagster_logger().debug("Inserting data")
         insert_sql = f"""
-        INSERT INTO {schema}.{table} ({schema_columns_str})
-        SELECT {schema_with_cast_str} FROM {schema}.{bcp_table}
+        INSERT INTO {self.database}.{schema}.{table} ({schema_columns_str})
+        SELECT {schema_with_cast_str} FROM {self.staging_database}.{schema}.{bcp_table}
         """
         connection.execute(
             text(
@@ -1060,7 +1080,7 @@ class BCPCore(ABC):
             )
         )
         get_dagster_logger().debug("dropping BCP table")
-        connection.execute(text(f"DROP TABLE {schema}.{bcp_table}"))
+        connection.execute(text(f"DROP TABLE {self.staging_database}.{schema}.{bcp_table}"))
 
     def _calculate_row_hash(
         self, connection: Connection, schema: str, table: str, columns: list[str]
@@ -1086,7 +1106,7 @@ class BCPCore(ABC):
         hash_sql = f"""CONVERT(NVARCHAR(32), HASHBYTES('MD5', {col_sql_str}), 2)"""
 
         update_sql = f"""
-        UPDATE {schema}.{table}
+        UPDATE {self.staging_database}.{schema}.{table}
         SET {self.row_hash_column_name} = {hash_sql}
         """
 
