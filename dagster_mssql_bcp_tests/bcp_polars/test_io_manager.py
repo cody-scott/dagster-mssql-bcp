@@ -208,7 +208,6 @@ class TestPolarsBCPIO:
         drop = f"""DROP TABLE IF EXISTS {io_manager.database}.{schema}.{table}"""
         use_sql = 'USE {db}'
         with self.connect_mssql() as connection:
-            
             connection.exec_driver_sql(use_sql.format(db=io_manager.staging_database))
             connection.exec_driver_sql(create_schema)
 

@@ -733,16 +733,15 @@ class BCPCore(ABC):
             connection (Connection): The database connection object.
             schema (str): The name of the schema to be created.
         """
-        get_dagster_logger().debug('Create schema if not existing')
-        use_db_sql = f"USE {database}"
+        self._set_database(connection, database)
 
+        get_dagster_logger().debug('Create schema if not existing')
         sql = f"""
         IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schema}')
         BEGIN
             EXEC('CREATE SCHEMA {schema}')
         END
         """
-        connection.execute(text(use_db_sql))
         connection.execute(text(sql))
 
     def _create_table(
@@ -1146,3 +1145,9 @@ class BCPCore(ABC):
         out_data = "".join(out_data)
         with format_file.open('w') as fl:
             fl.write(out_data)
+
+    @staticmethod
+    def _set_database(connection: Connection, database: str):
+        get_dagster_logger().debug(f'Setting database to {database}')
+        use_db_sql = f"USE {database}"
+        connection.execute(text(use_db_sql))
