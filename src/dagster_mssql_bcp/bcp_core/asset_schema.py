@@ -140,7 +140,7 @@ class AssetSchema:
                 raise ValueError(
                     f"Column type not provided for column: {column['name']}")
 
-            if column_type not in self.allowed_types:
+            if column_type.upper() not in self.allowed_types:
                 raise ValueError(f"Invalid data type: {column['type']}")
 
     @staticmethod
@@ -276,7 +276,7 @@ class AssetSchema:
     def get_sql_columns(self, staging: bool | None = None) -> list[str]:
         cols = self.get_sql_columns_as_dict(staging=staging)
 
-        return [f"{_['name']} {_['type']}" for _ in cols]
+        return [f""""{_['name']}" {_['type']}""" for _ in cols]
 
     def get_rename_dict(self) -> dict[str, str]:
         return {column["name"]: self._resolve_name(column) for column in self.schema}

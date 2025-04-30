@@ -70,20 +70,20 @@ class TestAssetSchema:
         schema = asset_schema.AssetSchema(asset_schema_fixture)
 
         result = [
-            "a BIGINT",
-            "b BIGINT",
-            "c NVARCHAR(MAX)",
-            "d DECIMAL(18, 0)",
-            "e DATETIME",
-            "f DATETIME2",
-            "g NVARCHAR(10)",
-            "h NVARCHAR(10)",
+            '"a" BIGINT',
+            '"b" BIGINT',
+            '"c" NVARCHAR(MAX)',
+            '"d" DECIMAL(18, 0)',
+            '"e" DATETIME',
+            '"f" DATETIME2',
+            '"g" NVARCHAR(10)',
+            '"h" NVARCHAR(10)',
         ]
 
         assert schema.get_sql_columns() == result
 
         schema.add_column({"name": "i", "type": "INT", "identity": True})
-        assert schema.get_sql_columns() == result + ["i INT IDENTITY(1,1)"]
+        assert schema.get_sql_columns() == result + ['"i" INT IDENTITY(1,1)']
 
     def test_get_columns(self, asset_schema_fixture):
         schema = asset_schema.AssetSchema(asset_schema_fixture)
@@ -290,15 +290,15 @@ class TestAssetSchema:
         schema.add_column({"name": "i", "type": "BIGINT"})
 
         result = [
-            "a BIGINT",
-            "b BIGINT",
-            "c NVARCHAR(MAX)",
-            "d DECIMAL(18, 0)",
-            "e DATETIME",
-            "f DATETIME2",
-            "g NVARCHAR(10)",
-            "h NVARCHAR(10)",
-            "i BIGINT",
+            '"a" BIGINT',
+            '"b" BIGINT',
+            '"c" NVARCHAR(MAX)',
+            '"d" DECIMAL(18, 0)',
+            '"e" DATETIME',
+            '"f" DATETIME2',
+            '"g" NVARCHAR(10)',
+            '"h" NVARCHAR(10)',
+            '"i" BIGINT',
         ]
 
         assert schema.get_sql_columns() == result
@@ -315,7 +315,8 @@ class TestAssetSchema:
 
     def test_validate_schema(self):
         good = [
-            {"name": "a", "type": "BIGINT"},
+            {"name": "a", "type": "bigint"},
+            # {"name": "a", "type": "BIGINT"},
             {"name": "b", "type": "BIGINT", "identity": True},
         ]
         asset_schema.AssetSchema(good)
@@ -367,10 +368,10 @@ class TestAssetSchema:
         asset_schema_obj = asset_schema.AssetSchema(schema)
 
         assert asset_schema_obj.get_sql_columns() == [
-            'a NVARCHAR(100)',
-            'b XML',
+            '"a" NVARCHAR(100)',
+            '"b" XML',
         ]
         assert asset_schema_obj.get_sql_columns(True) == [
-            'a NVARCHAR(100)',
-            'b VARBINARY(MAX)',
+            '"a" NVARCHAR(100)',
+            '"b" VARBINARY(MAX)',
         ]
