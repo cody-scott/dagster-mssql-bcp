@@ -535,10 +535,10 @@ class BCPCore(ABC):
         self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
 
-        # staging
-        if self.database != self.staging_database:
-            self._create_schema(connection, self.staging_database, schema)
+        self._create_schema(connection, self.staging_database, schema)
+        self._create_schema(connection, self.database, schema)
 
+        # staging
         get_dagster_logger().debug(f'Dropping existing staging table {schema}.{staging_table}')
         connection.execute(text(f'DROP TABLE IF EXISTS "{self.staging_database}"."{schema}"."{staging_table}"'))
 
@@ -551,7 +551,6 @@ class BCPCore(ABC):
             asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
         )
         # target db
-        self._create_schema(connection, self.database, schema)
         self._create_table(
             connection,
             self.database,
