@@ -1023,7 +1023,7 @@ class BCPCore(ABC):
         SET
         {set_columns}
         WHERE
-        should_process_replacements = 1
+        COALESCE(should_process_replacements, 1) = 1
         """
 
         update_sql_str = update_sql.format(
