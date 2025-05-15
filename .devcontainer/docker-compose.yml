@@ -10,7 +10,7 @@ services:
       - devnet
     
   dagster_sql_server_bcp:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: dagster_sql_server_bcp
     environment:
       - ACCEPT_EULA=y

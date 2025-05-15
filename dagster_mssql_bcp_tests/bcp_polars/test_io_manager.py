@@ -11,7 +11,7 @@ from dagster import (
     StaticPartitionsDefinition,
 )
 import polars as pl
-
+import json
 
 class TestPolarsBCPIO:
     @contextmanager
@@ -760,3 +760,45 @@ class TestPolarsBCPIO:
             ],
             resources={'io_manager': io_manager}
         )
+
+    def test_load_json(self):
+        schema = 'test_polars_bcp_schema'
+        table = 'test_polars_bcp_table_json'
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        asset_schema = [
+            {"name": "a", "type": "INT", 'identity': True},
+            {"name": "json_data", "type": "NVARCHAR"},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                "schema": schema,
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
+            },
+        )
+        def my_asset(context):
+            json_data = json.dumps({'hi': 1, "nest": {'ed': 'value'}})
+            return pl.DataFrame({'json_data': [json_data]})
+
+            # original structure
+
+        io_manager = self.io()
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+        with self.connect_mssql() as connection:
+            result = connection.exec_driver_sql(
+                f"SELECT a, cast(JSON_VALUE(json_data, '$.hi') as int), JSON_VALUE(json_data, '$.nest.ed') FROM {schema}.{table}")
+            assert result.fetchall() == [(
+                1, 1, 'value')]
