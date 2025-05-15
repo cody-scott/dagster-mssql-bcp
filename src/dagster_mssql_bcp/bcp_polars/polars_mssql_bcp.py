@@ -179,6 +179,7 @@ class PolarsBCP(BCPCore):
             path=path / file_name,
             line_terminator="\n",
             separator="\t",
+            quote_style="never"
         )
 
         return path / file_name
