@@ -1,4 +1,5 @@
 from dagster_mssql_bcp.bcp_polars import polars_mssql_io_manager
+from dagster_mssql_bcp.bcp_polars import polars_mssql_resource
 import os
 
 from contextlib import contextmanager
@@ -45,8 +46,8 @@ class TestPolarsBCPIO:
 
         return db_config
 
-    def io(self):
-        return polars_mssql_io_manager.PolarsBCPIOManager(
+    def rsc(self):
+        return polars_mssql_resource.PolarsBCPResource(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -58,9 +59,14 @@ class TestPolarsBCPIO:
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
+
+    def io(self):
+        return polars_mssql_io_manager.PolarsBCPIOManager(
+            resource=self.rsc()
+        )
     
     def io_stagingdb(self):
-        return polars_mssql_io_manager.PolarsBCPIOManager(
+        rsc = polars_mssql_resource.PolarsBCPResource(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -72,6 +78,10 @@ class TestPolarsBCPIO:
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
             staging_database="staging"
+        )
+
+        return polars_mssql_io_manager.PolarsBCPIOManager(
+            resource=rsc
         )
 
     def test_handle_output_basic(self):
@@ -205,13 +215,13 @@ class TestPolarsBCPIO:
         END
         """
 
-        drop = f"""DROP TABLE IF EXISTS {io_manager.database}.{schema}.{table}"""
+        drop = f"""DROP TABLE IF EXISTS {io_manager.resource.database}.{schema}.{table}"""
         use_sql = 'USE {db}'
         with self.connect_mssql() as connection:
-            connection.exec_driver_sql(use_sql.format(db=io_manager.staging_database))
+            connection.exec_driver_sql(use_sql.format(db=io_manager.resource.staging_database))
             connection.exec_driver_sql(create_schema)
 
-            connection.exec_driver_sql(use_sql.format(db=io_manager.database))
+            connection.exec_driver_sql(use_sql.format(db=io_manager.resource.database))
             connection.exec_driver_sql(create_schema)
             
             connection.exec_driver_sql(drop)
@@ -263,7 +273,7 @@ class TestPolarsBCPIO:
 
         # add the column to table but dont update schema. Table should have column but not be filled.
         with self.connect_mssql() as connection:
-            connection.execute(text(f"ALTER TABLE {io_manager.database}.{schema}.{table} ADD z NVARCHAR(10)"))
+            connection.execute(text(f"ALTER TABLE {io_manager.resource.database}.{schema}.{table} ADD z NVARCHAR(10)"))
 
         with build_output_context(
             asset_key=[schema, table],
@@ -296,13 +306,13 @@ class TestPolarsBCPIO:
                     row_hash,
                     load_uuid
                 INTO
-                    {io_manager.database}.{schema}.{table}
+                    {io_manager.resource.database}.{schema}.{table}
                 FROM
-                    {io_manager.database}.{schema}.{table}_old
+                    {io_manager.resource.database}.{schema}.{table}_old
                 """
                 )
             )
-            connection.execute(text(f"DROP TABLE {io_manager.database}.{schema}.{table}_old"))
+            connection.execute(text(f"DROP TABLE {io_manager.resource.database}.{schema}.{table}_old"))
         with build_output_context(
             asset_key=[schema, table],
             definition_metadata={"asset_schema": asset_schema, "schema": schema},

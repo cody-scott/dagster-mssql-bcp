@@ -1,18 +1,22 @@
 from dagster import asset, Definitions
-from dagster_mssql_bcp import PolarsBCPIOManager
+from dagster_mssql_bcp import PolarsBCPIOManager, PolarsBCPResource
 import polars as pl
 
 io_manager = PolarsBCPIOManager(
-    host="my_mssql_server",
-    database="my_database",
-    user="username",
-    password="password",
-    query_props={
-        "TrustServerCertificate": "yes",
-    },
-    bcp_arguments={"-u": ""},
-    bcp_path="/opt/mssql-tools18/bin/bcp",
+    resource=PolarsBCPResource(
+        host="my_mssql_server",
+        database="my_database",
+        port='1433',
+        username="username",
+        password="password",
+        query_props={
+            "TrustServerCertificate": "yes",
+        },
+        bcp_arguments={"-u": ""},
+        bcp_path="/opt/mssql-tools18/bin/bcp",
+    )
 )
+
 
 @asset(
     metadata={
@@ -28,7 +32,7 @@ def my_asset(context):
 
 defs = Definitions(
     assets=[my_asset],
-    io_managers={
+    resources={
         "io_manager": io_manager,
     },
 )

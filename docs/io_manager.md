@@ -4,7 +4,9 @@ The IO manager is a custom IO manager that loads data using BCP into MSSQL.
 
 ## Basic Usage
 
-The IO manager requires the following arguments:
+The io manager is used in conjunction with a `BCPResource`. The Resource is a configurable resource, allowing usage outside the io manager.
+
+The BCPResource requires the following arguments:
 
 * `host`: str -> The host of the MSSQL server.
 * `database`: str -> The database to load the data into.
@@ -20,22 +22,26 @@ These are passed through the `query_props` dictionary and `bcp_arguments` dictio
 
 The following example shows connecting using a username and password, trusting the server certificate and setting the path to the BCP tool, as its not on the path.
 
+Once you have the resource implement you can call the IO manager with its property
+
 ```python
-from dagster_mssql_bcp import PandasBCPIOManager
+from dagster_mssql_bcp import PandasBCPIOManager, PandasBCPResource
 
 io_manager = PandasBCPIOManager(
-    host='my_mssql_server',
-    database='my_database',
-    user='username',
-    password='password',
-    query_props={
-                "TrustServerCertificate": "yes",
-    },
-    bcp_arguments={
-        '-u': ''
-    },
-    bcp_path="/opt/mssql-tools18/bin/bcp",
-    staging_database=None
+    resource=PandasBCPResource(
+        host='my_mssql_server',
+        database='my_database',
+        user='username',
+        password='password',
+        query_props={
+                    "TrustServerCertificate": "yes",
+        },
+        bcp_arguments={
+            '-u': ''
+        },
+        bcp_path="/opt/mssql-tools18/bin/bcp",
+        staging_database=None
+    )
 )
 
 {'io_manager': io_manager}

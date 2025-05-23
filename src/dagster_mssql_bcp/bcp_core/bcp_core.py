@@ -33,23 +33,23 @@ class BCPCore(ABC):
     username: str | None
     password: str | None
 
-    query_props: dict[str, Any]
+    query_props: dict[str, Any] = {}
 
     bcp_arguments: dict[str, str] = {}
-    bcp_path: str | None
+    bcp_path: str | None = None
 
-    driver: str
+    driver: str = "ODBC Driver 18 for SQL Server"
 
-    process_datetime: bool
-    process_replacements: bool
+    process_datetime: bool = True
+    process_replacements: bool = True
 
-    add_row_hash: bool
-    add_load_datetime: bool
-    add_load_uuid: bool
+    add_row_hash: bool = True
+    add_load_datetime: bool = True
+    add_load_uuid: bool = True
 
-    row_hash_column_name: str
-    load_uuid_column_name: str
-    load_datetime_column_name: str
+    row_hash_column_name: str = "row_hash"
+    load_uuid_column_name: str = "load_uuid"
+    load_datetime_column_name: str = "load_datetime"
 
     _new_line_character: str = "__NEWLINE__"
     _tab_character: str = "__TAB__"
@@ -130,6 +130,13 @@ class BCPCore(ABC):
             self.staging_database = database
         else:
             self.staging_database = staging_database
+
+    def _get_staging_database(self):
+        """Returns the staging database to use. """
+        if self.staging_database is None:
+            return self.database
+        else:
+            return self.staging_database
 
     def _convert_query_props_to_string(self, query_props):
         """This maps boolean properties to the yes or no values
@@ -535,17 +542,17 @@ class BCPCore(ABC):
         self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
 
-        self._create_schema(connection, self.staging_database, schema)
+        self._create_schema(connection, self._get_staging_database(), schema)
         self._create_schema(connection, self.database, schema)
 
         # staging
         get_dagster_logger().debug(f'Dropping existing staging table {schema}.{staging_table}')
-        connection.execute(text(f'DROP TABLE IF EXISTS "{self.staging_database}"."{schema}"."{staging_table}"'))
+        connection.execute(text(f'DROP TABLE IF EXISTS "{self._get_staging_database()}"."{schema}"."{staging_table}"'))
 
         # problem is this is creating a table with identity but we have filtered out the identity column
         self._create_table(
             connection,
-            self.staging_database,
+            self._get_staging_database(),
             schema,
             staging_table,
             asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
@@ -842,7 +849,7 @@ class BCPCore(ABC):
         """
         raise NotImplementedError
 
-    def _parse_bcp_args(self, additional_args: dict[str, str]) -> dict[str, str]:
+    def _parse_bcp_args(self, additional_args: dict[str, str]):
         """
         Parses and constructs BCP (Bulk Copy Program) command-line arguments.
         Args:
@@ -857,7 +864,7 @@ class BCPCore(ABC):
         if self.password is not None:
             bcp_args["-P"] = self.password
 
-        bcp_args["-d"] = self.staging_database
+        bcp_args["-d"] = self._get_staging_database()
         bcp_args["-S"] = f'"{self.host},{self.port}"'
 
         bcp_args = bcp_args | additional_args
@@ -979,7 +986,7 @@ class BCPCore(ABC):
             ValueError: If the validation fails or no result is returned from the query.
         """
         get_dagster_logger().debug("Validating BCP load")
-        validate_load_sql = f"SELECT COUNT(*) FROM {self.staging_database}.{schema}.{bcp_table}"
+        validate_load_sql = f"SELECT COUNT(*) FROM {self._get_staging_database()}.{schema}.{bcp_table}"
         cursor = connection.execute(
             text(validate_load_sql.format(schema=schema, table=bcp_table))
         )
@@ -1027,7 +1034,7 @@ class BCPCore(ABC):
         """
 
         update_sql_str = update_sql.format(
-            db=self.staging_database,
+            db=self._get_staging_database(),
             schema=schema,
             table=table,
             set_columns=",\n".join(update_sets),
@@ -1065,7 +1072,7 @@ class BCPCore(ABC):
         get_dagster_logger().debug("Inserting data")
         insert_sql = f"""
         INSERT INTO {self.database}.{schema}.{table} ({schema_columns_str})
-        SELECT {schema_with_cast_str} FROM {self.staging_database}.{schema}.{bcp_table}
+        SELECT {schema_with_cast_str} FROM {self._get_staging_database()}.{schema}.{bcp_table}
         """
         connection.execute(
             text(
@@ -1078,7 +1085,7 @@ class BCPCore(ABC):
             )
         )
         get_dagster_logger().debug("dropping BCP table")
-        connection.execute(text(f"DROP TABLE {self.staging_database}.{schema}.{bcp_table}"))
+        connection.execute(text(f"DROP TABLE {self._get_staging_database()}.{schema}.{bcp_table}"))
 
     def _calculate_row_hash(
         self, connection: Connection, schema: str, table: str, columns: list[str]
@@ -1104,7 +1111,7 @@ class BCPCore(ABC):
         hash_sql = f"""CONVERT(NVARCHAR(32), HASHBYTES('MD5', {col_sql_str}), 2)"""
 
         update_sql = f"""
-        UPDATE {self.staging_database}.{schema}.{table}
+        UPDATE {self._get_staging_database()}.{schema}.{table}
         SET {self.row_hash_column_name} = {hash_sql}
         """
 
