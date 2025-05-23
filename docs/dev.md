@@ -49,6 +49,9 @@ implementing this class requires the following methods:
     Adds a bit column to indicate if that row should take place in the replacement.
     This is used to update the tab and new line removal from a string
 
+### BCP Resource
+
+This should inherit from the BCPResource and the implement class of BCPCore
 
 ## BCP IO Manager
 
@@ -58,7 +61,6 @@ implementing this class requires the following methods:
 
 * `load_input`: Load the data from the input manager.
 * `check_empty`: Check if the data is empty. return bool if empty
-* `get_bcp`: Return the BCP core class to use.
 
 If you need to connect to something like azure for auth, this is a good place to override the `setup_for_execution` function to process your authentication logic before passing the arguments down to the `BCPCore` using the `query_props` and `bcp_arguments`.
 
