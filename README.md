@@ -44,19 +44,22 @@ Polars processes as a `LazyFrame`. Either a `DataFrame` or `LazyFrame` can be pr
 
 ```python
 from dagster import asset, Definitions
-from dagster_mssql_bcp import PolarsBCPIOManager
+from dagster_mssql_bcp import PolarsBCPIOManager, PolarsBCPResource
 import polars as pl
 
 io_manager = PolarsBCPIOManager(
-    host="my_mssql_server",
-    database="my_database",
-    user="username",
-    password="password",
-    query_props={
-        "TrustServerCertificate": "yes",
-    },
-    bcp_arguments={"-u": ""},
-    bcp_path="/opt/mssql-tools18/bin/bcp",
+    resource=PolarsBCPResource(
+        host="my_mssql_server",
+        database="my_database",
+        port='1433',
+        username="username",
+        password="password",
+        query_props={
+            "TrustServerCertificate": "yes",
+        },
+        bcp_arguments={"-u": ""},
+        bcp_path="/opt/mssql-tools18/bin/bcp",
+    )
 )
 
 @asset(
@@ -95,20 +98,24 @@ defs = Definitions(
 
 ```python
 from dagster import asset, Definitions
-from dagster_mssql_bcp import PandasBCPIOManager
+from dagster_mssql_bcp import PandasBCPIOManager, PandasBCPResource
 import pandas as pd
 
 io_manager = PandasBCPIOManager(
-    host="my_mssql_server",
-    database="my_database",
-    user="username",
-    password="password",
-    query_props={
-        "TrustServerCertificate": "yes",
-    },
-    bcp_arguments={"-u": ""},
-    bcp_path="/opt/mssql-tools18/bin/bcp",
+    resource=PandasBCPResource(
+        host="my_mssql_server",
+        database="my_database",
+        port='1433',
+        username="username",
+        password="password",
+        query_props={
+            "TrustServerCertificate": "yes",
+        },
+        bcp_arguments={"-u": ""},
+        bcp_path="/opt/mssql-tools18/bin/bcp",
+    )
 )
+
 
 @asset(
     metadata={
