@@ -123,7 +123,7 @@ class TestPolarsBCP:
             query_props={
                 "TrustServerCertificate": "yes",
             },
-            bcp_arguments={"-u": "", "-b": 20},
+            bcp_arguments={"-u": "", "-b": '20'},
             bcp_path="/opt/mssql-tools18/bin/bcp",
             load_datetime_column_name="dt_col",
             load_uuid_column_name="uuid_col",
