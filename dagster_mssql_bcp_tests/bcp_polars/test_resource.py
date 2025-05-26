@@ -71,3 +71,39 @@ class TestPolarsBCPResource:
             [my_asset],
             resources={'polars_rsc': self.io()}
         )
+
+    def test_no_extras(self):
+        io = polars_mssql_resource.PolarsBCPResource(
+            host=os.getenv("TARGET_DB__HOST", ""),
+            port=os.getenv("TARGET_DB__PORT", "1433"),
+            database=os.getenv("TARGET_DB__DATABASE", ""),
+            username=os.getenv("TARGET_DB__USERNAME", ""),
+            password=os.getenv("TARGET_DB__PASSWORD", ""),
+            query_props={
+                "TrustServerCertificate": "yes",
+            },
+            bcp_arguments={"-u": ""},
+            bcp_path="/opt/mssql-tools18/bin/bcp",
+            # add_load_datetime=False,
+            add_row_hash=False,
+            # add_load_uuid=False,
+            load_datetime_column_name='LDT',
+            load_uuid_column_name='URD'
+        )
+        @dg.asset()
+        def my_asset(context, polars_rsc: polars_mssql_resource.PolarsBCPResource):
+            data = pl.DataFrame(
+                {
+                    "b": ["2021-01-01", "2021-01-01"],
+                }
+            )
+
+            polars_rsc.load_bcp(
+                data, 'dbo', 'tst2', [{'name': 'b', 'type': 'DATETIME2'}]
+            )
+            return None
+        
+        dg.materialize(
+            [my_asset],
+            resources={'polars_rsc': io}
+        )

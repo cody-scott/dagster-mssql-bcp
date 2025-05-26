@@ -14,7 +14,7 @@ class BCPResource(dg.ConfigurableResource):
     query_props: dict[str, Any] = {}
 
     bcp_arguments: dict[str, str] = {}
-    bcp_path: str | None = None
+    bcp_path: str = 'bcp'
 
     driver: str = "ODBC Driver 18 for SQL Server"
 

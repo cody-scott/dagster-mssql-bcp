@@ -36,7 +36,7 @@ class BCPCore(ABC):
     query_props: dict[str, Any] = {}
 
     bcp_arguments: dict[str, str] = {}
-    bcp_path: str | None = None
+    bcp_path: str = "bcp"
 
     driver: str = "ODBC Driver 18 for SQL Server"
 
@@ -75,7 +75,7 @@ class BCPCore(ABC):
         row_hash_column_name: str = "row_hash",
         load_uuid_column_name: str = "load_uuid",
         load_datetime_column_name: str = "load_datetime",
-        staging_database: str | None = None
+        staging_database: str | None = None,
     ):
         """
         Initialize the BCP core configuration.
@@ -112,13 +112,12 @@ class BCPCore(ABC):
         self.query_props = query_props
 
         self.bcp_arguments = bcp_arguments
-        self.bcp_path = bcp_path
 
         self.process_datetime = process_datetime
         self.process_replacements = process_replacements
 
         if bcp_path is not None:
-            self.bcp_path = self.bcp_path
+            self.bcp_path = bcp_path
         else:
             self.bcp_path = "bcp"
 
@@ -132,7 +131,7 @@ class BCPCore(ABC):
             self.staging_database = staging_database
 
     def _get_staging_database(self):
-        """Returns the staging database to use. """
+        """Returns the staging database to use."""
         if self.staging_database is None:
             return self.database
         else:
@@ -145,20 +144,18 @@ class BCPCore(ABC):
 
         https://learn.microsoft.com/en-us/sql/relational-databases/native-client/applications/using-connection-string-keywords-with-sql-server-native-client?view=sql-server-ver15
         """
-        mappings = {
-            "multisubnetfailover": {True: 'Yes', False: 'No'}
-        }
+        mappings = {"multisubnetfailover": {True: "Yes", False: "No"}}
         for _ in query_props:
             prop_value = query_props[_]
             if _.lower() in mappings:
                 prop_value = mappings[_.lower()].get(prop_value)
             elif isinstance(prop_value, bool):
-                prop_value = "yes" if prop_value else 'no'
+                prop_value = "yes" if prop_value else "no"
 
             query_props[_] = prop_value
 
         return query_props
-    
+
     @property
     def config(self):
         return dict(
@@ -171,7 +168,7 @@ class BCPCore(ABC):
             add_load_datetime=self.add_load_datetime,
             add_load_uuid=self.add_load_uuid,
             driver=self.driver,
-            query_props=self.query_props,
+            query_props=self._convert_query_props_to_string(self.query_props),
             bcp_arguments=self.bcp_arguments,
             bcp_path=self.bcp_path,
             process_datetime=self.process_datetime,
@@ -206,7 +203,7 @@ class BCPCore(ABC):
             query={
                 "driver": self.driver,
             }
-            | self.query_props,
+            | self._convert_query_props_to_string(self.query_props),
         )
 
     def load_bcp(
@@ -215,9 +212,9 @@ class BCPCore(ABC):
         schema: str,
         table: str,
         asset_schema: list[dict] | AssetSchema | None = None,
-        add_row_hash: bool = True,
-        add_load_datetime: bool = True,
-        add_load_uuid: bool = True,
+        add_row_hash: bool | None = None,
+        add_load_datetime: bool | None = None,
+        add_load_uuid: bool | None = None,
         uuid: str | None = None,
         process_datetime: bool | None = None,
         process_replacements: bool | None = None,
@@ -243,6 +240,13 @@ class BCPCore(ABC):
         if process_replacements is None:
             process_replacements = self.process_replacements
 
+        if add_row_hash is None:
+            add_row_hash = self.add_row_hash
+        if add_load_datetime is None:
+            add_load_datetime = self.add_load_datetime
+        if add_load_uuid is None:
+            add_load_uuid = self.add_load_uuid
+
         asset_schema = self._parse_asset_schema(schema, table, asset_schema)
 
         if uuid is None:
@@ -250,7 +254,7 @@ class BCPCore(ABC):
         uuid_table = uuid.replace("-", "_")
         staging_table = f"{table}_staging_{uuid_table}"
 
-        get_dagster_logger().debug('renaming columns')
+        get_dagster_logger().debug("renaming columns")
         data = self._rename_columns(data, asset_schema.get_rename_dict())
 
         self._add_meta_to_asset_schema(
@@ -309,9 +313,9 @@ class BCPCore(ABC):
         process_replacements,
         staging_table,
     ):
-        get_dagster_logger().info('preprocessing stage')
-        
-        get_dagster_logger().debug('running prehook')
+        get_dagster_logger().info("preprocessing stage")
+
+        get_dagster_logger().debug("running prehook")
         data = self._pre_processing_start_hook(data)
         self._create_target_tables(
             schema, table, asset_schema, staging_table, connection
@@ -351,9 +355,9 @@ class BCPCore(ABC):
         This step is responsible for preparing the data for the BCP stage.
         This includes renaming and reformating columns, adding metadata columns, and validating the schema.
         """
-        get_dagster_logger().debug('Standarizing input frame for bcp')
-        
-        get_dagster_logger().debug('Adding meta columns to frame')
+        get_dagster_logger().debug("Standarizing input frame for bcp")
+
+        get_dagster_logger().debug("Adding meta columns to frame")
         data = self._add_meta_columns(
             data,
             uuid_value=uuid,
@@ -362,7 +366,7 @@ class BCPCore(ABC):
             add_uuid=add_load_uuid,
         )
 
-        get_dagster_logger().debug('Adding identity columns to frame')
+        get_dagster_logger().debug("Adding identity columns to frame")
         data = self._add_identity_columns(data=data, asset_schema=asset_schema)
 
         sql_structure = self._get_sql_columns(connection, self.database, schema, table)
@@ -370,36 +374,38 @@ class BCPCore(ABC):
 
         schema_deltas = {}
         if sql_structure is not None:
-            get_dagster_logger().debug('Validating schemas')
+            get_dagster_logger().debug("Validating schemas")
             schema_deltas = self._validate_columns(
                 frame_columns, asset_schema.get_columns(), sql_structure
             )
 
-        get_dagster_logger().debug('Dropping undefined columns in asset schema from frame')
+        get_dagster_logger().debug(
+            "Dropping undefined columns in asset schema from frame"
+        )
         data = self._filter_columns(data, asset_schema.get_columns(True))
-        
-        get_dagster_logger().debug('Re-ordering columns to match SQL table')
+
+        get_dagster_logger().debug("Re-ordering columns to match SQL table")
         data = self._reorder_columns(data, asset_schema.get_columns(True))
 
         data = self._add_replacement_flag_column(data)
         if process_replacements:
-            get_dagster_logger().debug('Replacing column values')
+            get_dagster_logger().debug("Replacing column values")
             data = self._replace_values(data, asset_schema)
         if process_datetime:
-            get_dagster_logger().debug('Processing date and time columns')
+            get_dagster_logger().debug("Processing date and time columns")
             data = self._process_datetime(data, asset_schema)
 
         return data, schema_deltas
 
     def _bcp_stage(self, data, schema, staging_table):
-        get_dagster_logger().debug('bcp stage')
+        get_dagster_logger().debug("bcp stage")
         with TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             format_file = temp_dir / f"{staging_table}_format_file.fmt"
             error_file = temp_dir / f"{staging_table}_error_file.err"
-            get_dagster_logger().info('saving data to csv')
+            get_dagster_logger().info("saving data to csv")
             csv_file = self._save_csv(data, temp_dir, f"{staging_table}.csv")
-            
+
             self._generate_format_file(schema, staging_table, format_file)
             self._insert_with_bcp(
                 schema,
@@ -420,7 +426,7 @@ class BCPCore(ABC):
         add_row_hash,
         process_replacements,
     ):
-        get_dagster_logger().debug('post-bcp stage')
+        get_dagster_logger().debug("post-bcp stage")
         # Validate loads (counts of tables match)
         new_line_count = self._validate_bcp_load(
             connection, schema, staging_table, None
@@ -485,7 +491,7 @@ class BCPCore(ABC):
 
         if asset_schema is None:
             raise ValueError("No data table provided in metadata")
-        
+
         return asset_schema
 
     # region pre load
@@ -505,7 +511,7 @@ class BCPCore(ABC):
         Returns:
             AssetSchema: The updated asset schema with the added metadata columns.
         """
-        get_dagster_logger().debug('adding meta to asset schema')
+        get_dagster_logger().debug("adding meta to asset schema")
 
         schema_columns = asset_schema.get_columns()
         if add_row_hash and self.row_hash_column_name not in schema_columns:
@@ -541,13 +547,18 @@ class BCPCore(ABC):
     def _create_target_tables(
         self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
-
         self._create_schema(connection, self._get_staging_database(), schema)
         self._create_schema(connection, self.database, schema)
 
         # staging
-        get_dagster_logger().debug(f'Dropping existing staging table {schema}.{staging_table}')
-        connection.execute(text(f'DROP TABLE IF EXISTS "{self._get_staging_database()}"."{schema}"."{staging_table}"'))
+        get_dagster_logger().debug(
+            f"Dropping existing staging table {schema}.{staging_table}"
+        )
+        connection.execute(
+            text(
+                f'DROP TABLE IF EXISTS "{self._get_staging_database()}"."{schema}"."{staging_table}"'
+            )
+        )
 
         # problem is this is creating a table with identity but we have filtered out the identity column
         self._create_table(
@@ -742,7 +753,7 @@ class BCPCore(ABC):
         """
         self._set_database(connection, database)
 
-        get_dagster_logger().debug('Create schema if not existing')
+        get_dagster_logger().debug("Create schema if not existing")
         sql = f"""
         IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schema}')
         BEGIN
@@ -769,7 +780,7 @@ class BCPCore(ABC):
         Returns:
             None
         """
-        get_dagster_logger().debug(f'Creating table {schema}.{table}...')
+        get_dagster_logger().debug(f"Creating table {schema}.{table}...")
         column_list = columns
 
         column_list_str = ",\n".join(column_list)
@@ -887,7 +898,7 @@ class BCPCore(ABC):
         get_dagster_logger().debug("Generating BCP format file")
         bcp_args = {
             "-c": "",
-            "-C": '65001',
+            "-C": "65001",
             "-t": '"\t"',
             "-r": '"\n"',
             "-f": f'"{str(format_file_path)}"',
@@ -924,7 +935,7 @@ class BCPCore(ABC):
             get_dagster_logger().debug("Inserting data with BCP")
             bcp_args = {
                 "-c": "",
-                "-C": '65001',
+                "-C": "65001",
                 "-t": '"\t"',
                 "-r": '"\n"',
                 "-f": f'"{str(format_file_path)}"',
@@ -986,7 +997,9 @@ class BCPCore(ABC):
             ValueError: If the validation fails or no result is returned from the query.
         """
         get_dagster_logger().debug("Validating BCP load")
-        validate_load_sql = f"SELECT COUNT(*) FROM {self._get_staging_database()}.{schema}.{bcp_table}"
+        validate_load_sql = (
+            f"SELECT COUNT(*) FROM {self._get_staging_database()}.{schema}.{bcp_table}"
+        )
         cursor = connection.execute(
             text(validate_load_sql.format(schema=schema, table=bcp_table))
         )
@@ -1085,7 +1098,9 @@ class BCPCore(ABC):
             )
         )
         get_dagster_logger().debug("dropping BCP table")
-        connection.execute(text(f"DROP TABLE {self._get_staging_database()}.{schema}.{bcp_table}"))
+        connection.execute(
+            text(f"DROP TABLE {self._get_staging_database()}.{schema}.{bcp_table}")
+        )
 
     def _calculate_row_hash(
         self, connection: Connection, schema: str, table: str, columns: list[str]
@@ -1102,7 +1117,7 @@ class BCPCore(ABC):
         Returns:
             None
         """
-        get_dagster_logger().info('Calculating row hash')
+        get_dagster_logger().info("Calculating row hash")
         col_sql = [
             f"COALESCE(CAST({column} AS NVARCHAR(MAX)), '')" for column in columns
         ]
@@ -1127,7 +1142,6 @@ class BCPCore(ABC):
         """
         raise NotImplementedError
 
-
     def _remove_collation_from_format_file(self, format_file: Path):
         """
         Extract the collation components from the format file and replace them with `""`.
@@ -1137,7 +1151,7 @@ class BCPCore(ABC):
         This solves the issue of loading values with accents to SQL Server
         """
 
-        regex_pattern = r'^\d.{10,}\s(\w+)$'
+        regex_pattern = r"^\d.{10,}\s(\w+)$"
         regex_pattern = re.compile(regex_pattern)
 
         out_data = []
@@ -1150,11 +1164,11 @@ class BCPCore(ABC):
                 out_data.append(_)
 
         out_data = "".join(out_data)
-        with format_file.open('w') as fl:
+        with format_file.open("w") as fl:
             fl.write(out_data)
 
     @staticmethod
     def _set_database(connection: Connection, database: str):
-        get_dagster_logger().debug(f'Setting database to {database}')
+        get_dagster_logger().debug(f"Setting database to {database}")
         use_db_sql = f"USE {database}"
         connection.execute(text(use_db_sql))
