@@ -105,16 +105,19 @@ These are the arguments that are added to the data when loaded. These are used t
 * `add_row_hash`: bool -> Flag to add a hash of the row to the data. Default is `True`.
 * `add_load_uuid`: bool -> Flag to add a load UUID to the data. Default is `True`.
 * `add_load_datetime`: bool -> Flag to add a load date to the data. Default is `True`.
+* `add_identity_column`: bool -> Flag to add an identity column to the data. Default is `False`. Useful to then mark as a primary key
 
 * `row_hash_column_name`: str -> The name of the column to store the row hash in. Default is `row_hash`.
 * `load_uuid_column_name`: str -> The name of the column to store the load UUID in. Default is `load_uuid`.
 * `load_datetime_column_name`: str -> The name of the column to store the load datetime in. Default is `load_datetime`.
+* `identity_column_name`: str -> The name of the default identity column. Default is `id`.
 
 ```python
 metadata={
     'add_row_hash': False,
     'add_load_uuid': False,
     'add_load_datetime': False,
+    'add_identity_column': False,
 }
 ```
 

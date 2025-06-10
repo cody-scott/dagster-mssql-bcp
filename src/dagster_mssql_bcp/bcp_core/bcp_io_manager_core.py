@@ -5,7 +5,7 @@ from dagster import (
     OutputContext,
     get_dagster_logger,
     TableColumn,
-    TableSchema
+    TableSchema,
 )
 
 from abc import abstractmethod, ABC
@@ -32,8 +32,8 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             (context.definition_metadata or {}).get("columns"),
         )
 
-        connection_str = URL(**
-            self.resource.connection_config # type: ignore
+        connection_str = URL(
+            **self.resource.connection_config  # type: ignore
         ).render_as_string(hide_password=False)
 
         return self._read_from_database(sql=_sql, connection_string=connection_str)
@@ -66,14 +66,23 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
 
         _asset_schema = metadata.get("asset_schema")
         if _asset_schema is None:
-            raise ValueError('Missing asset schema in metadata def')
+            raise ValueError("Missing asset schema in metadata def")
         asset_schema = AssetSchema(_asset_schema)
 
         add_row_hash = metadata.get("add_row_hash", True)
         add_load_datetime = metadata.get("add_load_datetime", True)
         add_load_uuid = metadata.get("add_load_uuid", True)
 
-        process_datetime = metadata.get("process_datetime", bcp_manager.process_datetime)
+        add_identity_column = metadata.get("add_identity_column", bcp_manager.add_identity_column)
+        if add_identity_column:
+            pk_name = metadata.get(
+                "identity_column_name", bcp_manager.identity_column_name
+            )
+            asset_schema.add_column({'name': pk_name, 'type': 'BIGINT', 'identity': True})
+
+        process_datetime = metadata.get(
+            "process_datetime", bcp_manager.process_datetime
+        )
         process_replacements = metadata.get(
             "process_replacements", bcp_manager.process_replacements
         )
@@ -91,7 +100,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             add_load_uuid=add_load_uuid,
         )
 
-        get_dagster_logger().debug('Connecting to sql...')
+        get_dagster_logger().debug("Connecting to sql...")
         with connect_mssql(bcp_manager.connection_config) as connection:
             data, schema_deltas = bcp_manager._pre_bcp_stage(
                 connection=connection,
@@ -110,7 +119,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
 
         bcp_manager._bcp_stage(data, schema, staging_Table)
 
-        get_dagster_logger().debug('Connecting to sql...')
+        get_dagster_logger().debug("Connecting to sql...")
         with connect_mssql(bcp_manager.connection_config) as connection:
             cleanup_sql = get_cleanup_statement(table, schema, context)
             connection.exec_driver_sql(cleanup_sql)
@@ -127,16 +136,8 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
 
         meta_tbl = []
         for _ in asset_schema.get_sql_columns_as_dict(False):
-            
-            meta_tbl.append(
-                TableColumn(
-                    name=_['name'],
-                    type=_['type']
-                )
-            )
-        meta_schema = TableSchema(
-            columns=meta_tbl
-        )
+            meta_tbl.append(TableColumn(name=_["name"], type=_["type"]))
+        meta_schema = TableSchema(columns=meta_tbl)
 
         context.add_output_metadata(
             dict(
@@ -149,9 +150,7 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
                 uuid_query=f"SELECT * FROM {schema}.{table} WHERE load_uuid = '{uuid}'",
                 row_count=row_count,
             )
-            | {
-                "dagster/column_schema": meta_schema
-            }
+            | {"dagster/column_schema": meta_schema}
             | schema_deltas
         )
 

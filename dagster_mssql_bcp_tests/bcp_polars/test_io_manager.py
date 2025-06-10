@@ -83,6 +83,25 @@ class TestPolarsBCPIO:
         return polars_mssql_io_manager.PolarsBCPIOManager(
             resource=rsc
         )
+    
+    def io_identity(self):
+        rsc = polars_mssql_resource.PolarsBCPResource(
+            host=os.getenv("TARGET_DB__HOST", ""),
+            port=os.getenv("TARGET_DB__PORT", "1433"),
+            database=os.getenv("TARGET_DB__DATABASE", ""),
+            username=os.getenv("TARGET_DB__USERNAME", ""),
+            password=os.getenv("TARGET_DB__PASSWORD", ""),
+            query_props={
+                "TrustServerCertificate": "yes",
+            },
+            bcp_arguments={"-u": ""},
+            bcp_path="/opt/mssql-tools18/bin/bcp",
+            add_identity_column=True
+        )
+
+        return polars_mssql_io_manager.PolarsBCPIOManager(
+            resource=rsc
+        )
 
     def test_handle_output_basic(self):
         # setup
@@ -770,3 +789,117 @@ class TestPolarsBCPIO:
             ],
             resources={'io_manager': io_manager}
         )
+
+    def test_identity_io(self):
+        schema = "test_polars_bcp_schema"
+        table = "basic_io_identity"
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        io_manager = self.io_identity()
+
+        asset_schema = [
+            {"name": "b", "type": "NVARCHAR", "length": 10},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
+                "schema": schema
+            },
+        )
+        def my_asset(context):
+            return data
+
+            # original structure
+
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["a", "a"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+
+        with self.connect_mssql() as con:
+            s = f"select column_name from information_schema.columns where table_name = '{table}' and table_schema = '{schema}'"
+            r = con.exec_driver_sql(s)
+            res = r.fetchall()
+
+            assert {_[0] for _ in res} == {'id', 'b'}
+
+            s = f"select max(id) from {schema}.{table}"
+            r = con.exec_driver_sql(s)
+            res = r.fetchone()
+            assert res[0] == 4
+
+
+    def test_identity_io_as_arg(self):
+        schema = "test_polars_bcp_schema"
+        table = "basic_io_identity_flag"
+        drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
+
+        with self.connect_mssql() as connection:
+            connection.execute(text(drop))
+
+        io_manager = self.io()
+
+        asset_schema = [
+            {"name": "b", "type": "NVARCHAR", "length": 10},
+        ]
+
+        @asset(
+            name=table,
+            metadata={
+                "asset_schema": asset_schema,
+                "add_row_hash": False,
+                "add_load_datetime": False,
+                "add_load_uuid": False,
+                "add_identity_column": True,
+                "schema": schema
+            },
+        )
+        def my_asset(context):
+            return data
+
+            # original structure
+
+        data = pl.DataFrame(
+            {
+                "a": [1, 1],
+                "b": ["a", "a"],
+            }
+        )
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+        materialize(
+            assets=[my_asset],
+            resources={"io_manager": io_manager},
+        )
+
+        with self.connect_mssql() as con:
+            s = f"select column_name from information_schema.columns where table_name = '{table}' and table_schema = '{schema}'"
+            r = con.exec_driver_sql(s)
+            res = r.fetchall()
+
+            assert {_[0] for _ in res} == {'id', 'b'}
+
+            s = f"select max(id) from {schema}.{table}"
+            r = con.exec_driver_sql(s)
+            res = r.fetchone()
+            assert res[0] == 4
