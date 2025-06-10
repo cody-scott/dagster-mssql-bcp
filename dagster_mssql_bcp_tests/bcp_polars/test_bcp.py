@@ -634,3 +634,47 @@ class TestPolarsBCP:
                 result = fl.read()
 
             assert result == format_files.format_file_expected
+
+    def test_identity_column(self):
+        polars_io = polars_mssql_bcp.PolarsBCP(
+            host=os.getenv("TARGET_DB__HOST", ""),
+            port=os.getenv("TARGET_DB__PORT", "1433"),
+            database=os.getenv("TARGET_DB__DATABASE", ""),
+            username=os.getenv("TARGET_DB__USERNAME", ""),
+            password=os.getenv("TARGET_DB__PASSWORD", ""),
+            query_props={
+                "TrustServerCertificate": "yes",
+            },
+            bcp_arguments={"-u": "", "-b": 20},
+            bcp_path="/opt/mssql-tools18/bin/bcp",
+            add_identity_column=True
+        )
+        
+        df = pl.DataFrame(
+            {
+                "a": [1, 2, 3],
+                "b": [4, 5, 6],
+                "c": ["a", "b", "c"],
+                "d": [1.1, 2.2, 3.3],
+            }
+        )
+        schema = [
+                {"name": "a", "type": "BIGINT"},
+                {"name": "b", "type": "BIGINT"},
+                {"name": "c", "type": "NVARCHAR", "length": 50},
+            ]
+        
+
+        polars_io.load_bcp(
+            df, 'polars_bcp', 'pk_tst', schema 
+        )
+        polars_io.load_bcp(
+            df, 'polars_bcp', 'pk_tst', schema 
+        )
+
+        with self.connect_mssql() as con:
+            s = f"select column_name from information_schema.columns where table_name = 'pk_tst' and table_schema = 'polars_bcp'"
+            r = con.exec_driver_sql(s)
+            res = r.fetchall()
+
+            assert {_[0] for _ in res} == {'id', 'row_hash', 'a', 'b', 'load_datetime', 'load_uuid', 'c'}

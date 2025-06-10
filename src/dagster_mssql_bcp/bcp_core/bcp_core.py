@@ -46,10 +46,12 @@ class BCPCore(ABC):
     add_row_hash: bool = True
     add_load_datetime: bool = True
     add_load_uuid: bool = True
+    add_identity_column: bool = False
 
     row_hash_column_name: str = "row_hash"
     load_uuid_column_name: str = "load_uuid"
     load_datetime_column_name: str = "load_datetime"
+    identity_column_name: str = "id"
 
     _new_line_character: str = "__NEWLINE__"
     _tab_character: str = "__TAB__"
@@ -69,12 +71,14 @@ class BCPCore(ABC):
         add_row_hash: bool = True,
         add_load_datetime: bool = True,
         add_load_uuid: bool = True,
+        add_identity_column: bool = False,
         bcp_path: str | None = None,
         process_datetime: bool = True,
         process_replacements: bool = True,
         row_hash_column_name: str = "row_hash",
         load_uuid_column_name: str = "load_uuid",
         load_datetime_column_name: str = "load_datetime",
+        identity_column_name: str = "id",
         staging_database: str | None = None,
     ):
         """
@@ -105,6 +109,7 @@ class BCPCore(ABC):
         self.add_row_hash = add_row_hash
         self.add_load_datetime = add_load_datetime
         self.add_load_uuid = add_load_uuid
+        self.add_identity_column = add_identity_column
 
         self.driver = driver
 
@@ -124,6 +129,7 @@ class BCPCore(ABC):
         self.row_hash_column_name = row_hash_column_name
         self.load_uuid_column_name = load_uuid_column_name
         self.load_datetime_column_name = load_datetime_column_name
+        self.identity_column_name = identity_column_name
 
         if staging_database is None:
             self.staging_database = database
@@ -215,6 +221,7 @@ class BCPCore(ABC):
         add_row_hash: bool | None = None,
         add_load_datetime: bool | None = None,
         add_load_uuid: bool | None = None,
+        add_identity_column: bool | None = None,
         uuid: str | None = None,
         process_datetime: bool | None = None,
         process_replacements: bool | None = None,
@@ -246,8 +253,19 @@ class BCPCore(ABC):
             add_load_datetime = self.add_load_datetime
         if add_load_uuid is None:
             add_load_uuid = self.add_load_uuid
+        if add_identity_column is None:
+            add_identity_column = self.add_identity_column
 
         asset_schema = self._parse_asset_schema(schema, table, asset_schema)
+
+        if add_identity_column:
+            asset_schema.add_column(
+                {
+                    "name": self.identity_column_name,
+                    "type": "BIGINT",
+                    "identity": True,
+                }
+            )
 
         if uuid is None:
             uuid = str(uuid4())

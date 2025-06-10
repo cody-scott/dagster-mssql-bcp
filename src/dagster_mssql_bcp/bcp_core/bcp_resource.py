@@ -24,10 +24,12 @@ class BCPResource(dg.ConfigurableResource):
     add_row_hash: bool = True
     add_load_datetime: bool = True
     add_load_uuid: bool = True
+    add_identity_column: bool = False
 
     row_hash_column_name: str = "row_hash"
     load_uuid_column_name: str = "load_uuid"
     load_datetime_column_name: str = "load_datetime"
+    identity_column_name: str = 'id'
 
     _new_line_character: str = "__NEWLINE__"
     _tab_character: str = "__TAB__"
