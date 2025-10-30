@@ -2,13 +2,9 @@ from pathlib import Path
 
 import pendulum
 
-try:
-    import polars as pl
-    import polars.selectors as cs
+import polars as pl
+import polars.selectors as cs
 
-    polars_available = 1
-except ImportError:
-    polars_available = 0
 
 from dagster_mssql_bcp.bcp_core import AssetSchema, BCPCore
 
@@ -38,7 +34,9 @@ class PolarsBCP(BCPCore):
                     .to_iso8601_string()
                     .replace("T", " ")
                     .replace("Z", "+00:00")
-                ).alias(self.load_datetime_column_name)
+                )
+                .str.to_datetime(time_zone="UTC")
+                .alias(self.load_datetime_column_name)
             )
 
         return data.with_columns(columns_to_add)
@@ -80,8 +78,8 @@ class PolarsBCP(BCPCore):
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
                 .str.replace_all('^""$', "")
-                .str.replace_all('^NULL$', "")
-                .str.replace_all('^null$', "")
+                .str.replace_all("^NULL$", "")
+                .str.replace_all("^null$", "")
                 for _ in string_cols
                 if _ not in number_columns_that_are_strings
             ]
@@ -126,7 +124,9 @@ class PolarsBCP(BCPCore):
 
         data = data.with_columns(
             [
-                pl.col(col).str.to_datetime()
+                pl.col(col).str.to_datetime(
+                    format=asset_schema.get_datetime_format(col)
+                )
                 for col in asset_schema.get_datetime_columns()
                 if col not in dt_columns and col not in null_columns
             ]
@@ -179,7 +179,7 @@ class PolarsBCP(BCPCore):
             path=path / file_name,
             line_terminator="\n",
             separator="\t",
-            quote_style="never"
+            quote_style="never",
         )
 
         return path / file_name

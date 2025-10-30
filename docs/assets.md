@@ -48,6 +48,7 @@ The `Asset Schema` is a list of dictionaries that describe the data you are load
 * `scale`: int -> If the column is a `DECIMAL` or `NUMERIC`, the scale of the number. If not a number, this key is ignored. Default is `0`.
 * `hash`: bool -> Flag if this should be included in the hash of the row. If `False`, the column will not be included in the hash. If not present, the column will be included in the hash. Default/Ommitted is `True`
 * `identity`: bool -> Flag if this column is an identity column. If `True`, the column will be set to `IDENTITY(1,1)`. If not present, the column will not be an identity column. Default/Ommitted is `False`. When using an identity the column may or may not appear in the data. If it does, it will be ignored. Should be an integer based type.
+* `datetime_format`: str -> specifier for string datetime formats. Newer polars version throws an error when timezones are not specified or formatted. This allows for declaring the format of a string datetime column when processing.
 
 ```python
 # example

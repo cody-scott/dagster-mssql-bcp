@@ -11,7 +11,8 @@ from dagster import (
 from pytest_mock import MockerFixture
 from sqlalchemy import Connection
 
-from dagster._core.definitions.time_window_partitions import TimeWindow
+from dagster._core.definitions.partitions.utils.time_window import TimeWindow
+
 import pendulum
 
 from dagster_mssql_bcp.bcp_core import utils

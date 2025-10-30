@@ -403,7 +403,7 @@ class TestPolarsBCP:
             [
                 {"name": "a", "type": "DATETIME2"},
                 {"name": "b", "type": "BIGINT"},
-                {"name": "c", "type": "DATETIME2"},
+                {"name": "c", "type": "DATETIME2", "datetime_format": '%Y-%m-%d %H:%M:%S%:z'},
             ]
         )
         df = polars_io._process_datetime(input, schema).collect()
@@ -673,7 +673,7 @@ class TestPolarsBCP:
         )
 
         with self.connect_mssql() as con:
-            s = f"select column_name from information_schema.columns where table_name = 'pk_tst' and table_schema = 'polars_bcp'"
+            s = "select column_name from information_schema.columns where table_name = 'pk_tst' and table_schema = 'polars_bcp'"
             r = con.exec_driver_sql(s)
             res = r.fetchall()
 

@@ -42,6 +42,7 @@ schema_spec = {
             "scale": {"type": "integer"},
             "pk": {"type": "boolean"},
             "hash": {"type": "boolean"},
+            "datetime_format": {"type": "string"}
         },
         "required": ["name"],
     },
@@ -161,6 +162,12 @@ class AssetSchema:
     def _resolve_type(column: dict) -> str:
         """Returns the SQL type of column"""
         return column["type"].upper()
+    
+    def get_datetime_format(self, column):
+        for _ in self.schema:
+            if _.get('name') == column:
+                return _.get('datetime_format')
+
 
     def get_source_columns(self):
         """Returns a list of columns by their source names."""
@@ -204,6 +211,7 @@ class AssetSchema:
             for column in self.schema
             if self._resolve_type(column) in self.datetime_column_types
         ]
+        
 
     def get_numeric_columns(self) -> list[str]:
         ident_cols = self.get_identity_columns()
