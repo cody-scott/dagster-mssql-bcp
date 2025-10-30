@@ -1,4 +1,5 @@
 from dagster_mssql_bcp.bcp_pandas import pandas_mssql_io_manager
+from dagster_mssql_bcp.bcp_pandas import pandas_mssql_resource
 import os
 
 from contextlib import contextmanager
@@ -46,7 +47,7 @@ class TestPandasBCPIO:
         return db_config
 
     def io(self):
-        return pandas_mssql_io_manager.PandasBCPIOManager(
+        rsc = pandas_mssql_resource.PandasBCPResource(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -57,6 +58,9 @@ class TestPandasBCPIO:
             },
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
+        )
+        return pandas_mssql_io_manager.PandasBCPIOManager(
+            resource=rsc
         )
 
     def test_handle_output_basic(self):

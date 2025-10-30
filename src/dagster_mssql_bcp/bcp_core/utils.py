@@ -29,7 +29,7 @@ def calculate_max_chunk(df):
     return max_chunksize
 
 
-def get_select_statement(table: str, schema: str, context, columns: list[str] = None) -> str:
+def get_select_statement(table: str, schema: str, context, columns: list[str] | None = None) -> str:
     where_clause = _partition_where_clause(context)
     if where_clause is None:
         where_clause = ""
