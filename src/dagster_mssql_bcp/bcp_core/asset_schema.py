@@ -42,6 +42,7 @@ schema_spec = {
             "scale": {"type": "integer"},
             "pk": {"type": "boolean"},
             "hash": {"type": "boolean"},
+            "datetime_format": {"type": "string"}
         },
         "required": ["name"],
     },
@@ -72,6 +73,15 @@ class AssetSchema:
         + float_column_types
         + decimal_column_types
         + money_column_types
+    )
+
+    geo_columns = (
+        geometry_column_types +
+        geography_column_types
+    )
+
+    _recastable_columns = (
+        xml_column_types
     )
 
     allowed_types = (
@@ -144,14 +154,20 @@ class AssetSchema:
                 raise ValueError(f"Invalid data type: {column['type']}")
 
     @staticmethod
-    def _resolve_name(column: dict):
+    def _resolve_name(column: dict) -> str:
         """Resolve a columns name as either the alias or name, if no alias provided"""
-        return column.get("alias", column.get("name"))
+        return column.get("alias", column["name"])
 
     @staticmethod
-    def _resolve_type(column: dict):
+    def _resolve_type(column: dict) -> str:
         """Returns the SQL type of column"""
         return column["type"].upper()
+    
+    def get_datetime_format(self, column):
+        for _ in self.schema:
+            if _.get('name') == column:
+                return _.get('datetime_format')
+
 
     def get_source_columns(self):
         """Returns a list of columns by their source names."""
@@ -195,6 +211,7 @@ class AssetSchema:
             for column in self.schema
             if self._resolve_type(column) in self.datetime_column_types
         ]
+        
 
     def get_numeric_columns(self) -> list[str]:
         ident_cols = self.get_identity_columns()
@@ -217,9 +234,10 @@ class AssetSchema:
         for column in self.schema:
             if column.get("identity", False) is True and not include_identity:
                 continue
+
             column_name = self._resolve_name(column)
             column_type = column.get('type')
-            if column_type in self.xml_column_types:
+            if column_type in self._recastable_columns:
                 result.append(f"""
                             (
                                 CAST(
@@ -228,26 +246,25 @@ class AssetSchema:
                                 )
                             ) AS {self._resolve_name(column)}
                             """)
-                
-            elif column_type in self.geography_column_types + self.geometry_column_types:
+            
+            elif column_type in self.geo_columns:
                 srid = column.get('srid', 4326)
                 result.append(f"{column_type}::STGeomFromWKB({column_name}, {srid}) AS {column_name}")
             else:
                 result.append(f"{column_name} AS {column_name}") 
         return result
 
-    def get_sql_columns_as_dict(self, staging: bool | None = None) -> list[str]:
+    def get_sql_columns_as_dict(self, staging: bool | None = None) -> list[dict[str, str]]:
         if staging is None:
             staging = False
 
         columns = []
         for column in self.schema:
-            to_add = {}
-
             column_name = self._resolve_name(column)
             data = column
             data_type = self._resolve_type(data)
 
+            # for staging override typing
             if staging and data_type in self._stage_as_binary:
                 data_type = "VARBINARY"
 
