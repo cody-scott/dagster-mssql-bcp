@@ -124,9 +124,7 @@ class PolarsBCP(BCPCore):
 
         data = data.with_columns(
             [
-                pl.col(col).str.to_datetime(
-                    format=asset_schema.get_datetime_format(col)
-                )
+                pl.col(col).str.to_datetime(time_zone="UTC")
                 for col in asset_schema.get_datetime_columns()
                 if col not in dt_columns and col not in null_columns
             ]
