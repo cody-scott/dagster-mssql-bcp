@@ -85,10 +85,13 @@ class PolarsBCP(BCPCore):
             ]
             + [
                 pl.col(_)
+                .str.to_lowercase()
                 .str.replace_all(",", "")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
                 .str.replace_all('^""$', "")
+                .str.replace_all('true', '1')
+                .str.replace_all('false', '0')
                 for _ in number_columns_that_are_strings
             ]
             + [
@@ -201,8 +204,8 @@ class PolarsBCP(BCPCore):
         data = data.with_columns([pl.lit(None).alias(_) for _ in missing_idents])
         return data
 
-    def _pre_processing_start_hook(self, data: pl.DataFrame):
-        return data.lazy()
+    def _pre_processing_start_hook(self, dataframe: pl.DataFrame):
+        return dataframe.lazy()
 
     def _add_replacement_flag_column(self, data: pl.DataFrame):
         data = data.with_columns(pl.lit(0).alias("should_process_replacements"))

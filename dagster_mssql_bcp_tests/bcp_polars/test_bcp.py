@@ -84,6 +84,8 @@ class TestPolarsBCP:
                 {"name": "b", "type": "BIGINT"},
                 {"name": "c", "type": "NVARCHAR", "length": 50},
                 {"name": "d", "type": "DATETIME2"},
+                {"name": "f", "type": "BIT"},
+                
             ]
         )
         df = pl.DataFrame(
@@ -96,6 +98,7 @@ class TestPolarsBCP:
                     "2021-02-01 00:00:00",
                     "2021-03-01 00:00:00",
                 ],
+                "f": [None, 'false', 'True']
             }
         )
         polars_io.load_bcp(df, schema, table, asset_schema)
@@ -360,6 +363,16 @@ class TestPolarsBCP:
         )
         df =  polars_io._replace_values(input.lazy(), schema).collect()
         pl_testing.assert_frame_equal(df.select('has_null'), expected)
+
+        schema = polars_mssql_bcp.AssetSchema(
+            [
+                {"name": "a", "type": "BIT"},
+            ]
+        )
+        input = pl.DataFrame({'a': [None, 'true', 'True', 'false', 'False']})
+        expected = pl.DataFrame({'a': [None, '1', '1', '0', '0']})
+        df =  polars_io._replace_values(input.lazy(), schema).collect()
+        pl_testing.assert_frame_equal(df.select('a'), expected)
 
 
     def test_process_datetime(self, polars_io: polars_mssql_bcp.PolarsBCP):
