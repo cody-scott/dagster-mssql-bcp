@@ -73,6 +73,7 @@ class AssetSchema:
         + float_column_types
         + decimal_column_types
         + money_column_types
+        + bool_column_types
     )
 
     geo_columns = (

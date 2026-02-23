@@ -85,10 +85,13 @@ class PolarsBCP(BCPCore):
             ]
             + [
                 pl.col(_)
+                .str.to_lowercase()
                 .str.replace_all(",", "")
                 .str.replace_all("^nan$", "")
                 .str.replace_all("^NAN$", "")
                 .str.replace_all('^""$', "")
+                .str.replace_all('true', '1')
+                .str.replace_all('false', '0')
                 for _ in number_columns_that_are_strings
             ]
             + [
