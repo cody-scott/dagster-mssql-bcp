@@ -84,6 +84,8 @@ class TestPolarsBCP:
                 {"name": "b", "type": "BIGINT"},
                 {"name": "c", "type": "NVARCHAR", "length": 50},
                 {"name": "d", "type": "DATETIME2"},
+                {"name": "f", "type": "BIT"},
+                
             ]
         )
         df = pl.DataFrame(
@@ -96,6 +98,7 @@ class TestPolarsBCP:
                     "2021-02-01 00:00:00",
                     "2021-03-01 00:00:00",
                 ],
+                "f": [None, 'false', 'True']
             }
         )
         polars_io.load_bcp(df, schema, table, asset_schema)
