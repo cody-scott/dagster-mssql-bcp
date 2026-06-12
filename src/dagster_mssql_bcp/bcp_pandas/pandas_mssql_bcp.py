@@ -1,10 +1,6 @@
 import csv
 from pathlib import Path
-
-try:
-    import pandas as pd
-except ImportError:
-    has_pandas = False
+import pandas as pd
 
 import pendulum
 from dagster import get_dagster_logger
@@ -22,13 +18,13 @@ class PandasBCP(BCPCore):
         add_datetime: bool = True,
     ):
         if add_hash:
-            data[self.row_hash_column_name] = None
+            data[self.config.row_hash_column_name] = None
 
         if add_uuid:
-            data[self.load_uuid_column_name] = uuid_value
+            data[self.config.load_uuid_column_name] = uuid_value
 
         if add_datetime:
-            data[self.load_datetime_column_name] = (
+            data[self.config.load_datetime_column_name] = (
                 pendulum.now()
                 .to_iso8601_string()
                 .replace("T", " ")
@@ -40,12 +36,12 @@ class PandasBCP(BCPCore):
         get_dagster_logger().debug("Replacing characters for BCP")
         # replace tab characters with __TAB__
         get_dagster_logger().debug("Replacing tab characters with __TAB__")
-        tab = self._tab_character  # type: ignore
+        tab = self.config._tab_character  # type: ignore
         data = data.replace("\t", tab, regex=True)
 
         get_dagster_logger().debug("Replacing newline characters with __NEWLINE__")
         # replace newline characters with __NEWLINE__
-        new_line = self._new_line_character  # type: ignore
+        new_line = self.config._new_line_character  # type: ignore
         data = data.replace("\n", new_line, regex=True)
 
         get_dagster_logger().debug("Replacing True/False with 1/0")
