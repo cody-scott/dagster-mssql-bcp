@@ -47,7 +47,8 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
             get_dagster_logger().info("No data to load")
             return
 
-        bcp_manager = self.resource
+        bcp_resource = self.resource
+        bcp_engine = bcp_resource.get_engine()
 
         metadata = (
             context.definition_metadata
@@ -73,27 +74,27 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
         add_load_datetime = metadata.get("add_load_datetime", True)
         add_load_uuid = metadata.get("add_load_uuid", True)
 
-        add_identity_column = metadata.get("add_identity_column", bcp_manager.add_identity_column)
+        add_identity_column = metadata.get("add_identity_column", bcp_resource.add_identity_column)
         if add_identity_column:
             pk_name = metadata.get(
-                "identity_column_name", bcp_manager.identity_column_name
+                "identity_column_name", bcp_resource.identity_column_name
             )
             asset_schema.add_column({'name': pk_name, 'type': 'BIGINT', 'identity': True})
 
         process_datetime = metadata.get(
-            "process_datetime", bcp_manager.process_datetime
+            "process_datetime", bcp_resource.process_datetime
         )
         process_replacements = metadata.get(
-            "process_replacements", bcp_manager.process_replacements
+            "process_replacements", bcp_resource.process_replacements
         )
 
         uuid = str(uuid4())
         uuid_table = uuid.replace("-", "_").split("_")[0]
-        staging_Table = f"{table}__io__{uuid_table}"
+        staging_table = f"{table}__io__{uuid_table}"
 
-        obj = bcp_manager._rename_columns(obj, asset_schema.get_rename_dict())
+        obj = bcp_engine._rename_columns(obj, asset_schema.get_rename_dict())
 
-        asset_schema = bcp_manager._add_meta_to_asset_schema(
+        asset_schema = bcp_engine._add_meta_to_asset_schema(
             asset_schema,
             add_row_hash=add_row_hash,
             add_load_datetime=add_load_datetime,
@@ -101,8 +102,8 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
         )
 
         get_dagster_logger().debug("Connecting to sql...")
-        with connect_mssql(bcp_manager.connection_config) as connection:
-            data, schema_deltas = bcp_manager._pre_bcp_stage(
+        with connect_mssql(bcp_resource.connection_config) as connection:
+            data, schema_deltas = bcp_engine._pre_bcp_stage(
                 connection=connection,
                 data=obj,
                 schema=schema,
@@ -114,21 +115,21 @@ class BCPIOManagerCore(ConfigurableIOManager, ABC):
                 uuid=uuid,
                 process_datetime=process_datetime,
                 process_replacements=process_replacements,
-                staging_table=staging_Table,
+                staging_table=staging_table,
             )
 
-        bcp_manager._bcp_stage(data, schema, staging_Table)
+        bcp_engine._bcp_stage(data, schema, staging_table)
 
         get_dagster_logger().debug("Connecting to sql...")
-        with connect_mssql(bcp_manager.connection_config) as connection:
+        with connect_mssql(bcp_resource.connection_config) as connection:
             cleanup_sql = get_cleanup_statement(table, schema, context)
             connection.exec_driver_sql(cleanup_sql)
-            row_count = bcp_manager._post_bcp_stage(
+            row_count = bcp_engine._post_bcp_stage(
                 connection=connection,
                 data=obj,
                 schema=schema,
                 table=table,
-                staging_table=staging_Table,
+                staging_table=staging_table,
                 asset_schema=asset_schema,
                 add_row_hash=add_row_hash,
                 process_replacements=process_replacements,

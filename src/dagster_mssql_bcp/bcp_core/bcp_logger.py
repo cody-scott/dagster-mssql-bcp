@@ -3,7 +3,7 @@ from logging import INFO, Logger
 
 from dagster import get_dagster_logger
 
-
+Logger.info
 class BCPLogger(Logger):
     dagster_logger = None
     cleaner_regex = r"(?<=-P).*(?=-f)|(?<=-U).*(?=-d)"
@@ -13,12 +13,12 @@ class BCPLogger(Logger):
     ):
         self.dagster_logger = get_dagster_logger()
 
-    def info(self, message, **kwargs):
-        output_txt = re.sub(self.cleaner_regex, "*" * 5, message)
+    def info(self, msg, *args: object, **kwargs):
+        output_txt = re.sub(self.cleaner_regex, "*" * 5, msg)
         if self.dagster_logger is not None:
             self.dagster_logger.debug(output_txt)
 
-    def debug(self, message, **kwargs):
-        output_txt = re.sub(self.cleaner_regex, "*" * 5, message)
+    def debug(self, msg, *args: object, **kwargs):
+        output_txt = re.sub(self.cleaner_regex, "*" * 5, msg)
         if self.dagster_logger is not None:
             self.dagster_logger.debug(output_txt)

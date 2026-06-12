@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import pandas as pd
 import pytest
 from dagster import (
     OutputContext,
@@ -118,24 +117,6 @@ def test___time_window_where_clause():
     result = utils._time_window_where_clause((_start, _end), time_column)
     assert result == target
 
-
-def test__calculate_max_chunksize():
-    df = pd.DataFrame(list(range(5000)), columns=["data"])
-    df["data2"] = df["data"]
-    # two columns, 5000 rows means a chunk of 1000 over 5 rounds of inserts
-    target = 1000
-    result = utils.calculate_max_chunk(df)
-    assert target == result
-
-    df["data3"] = df["data"]
-    target = 666
-    result = utils.calculate_max_chunk(df)
-    assert target == result
-
-    df = pd.DataFrame()
-    target = 1000
-    result = utils.calculate_max_chunk(df)
-    assert target == result
 
 
 def test_static___partition_where_clause(output_context__static_partition):

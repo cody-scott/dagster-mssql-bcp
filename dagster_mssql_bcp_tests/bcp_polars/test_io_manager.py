@@ -14,6 +14,7 @@ from dagster import (
 import polars as pl
 import json
 
+
 class TestPolarsBCPIO:
     @contextmanager
     def connect_mssql(self):
@@ -61,10 +62,8 @@ class TestPolarsBCPIO:
         )
 
     def io(self):
-        return polars_mssql_io_manager.PolarsBCPIOManager(
-            resource=self.rsc()
-        )
-    
+        return polars_mssql_io_manager.PolarsBCPIOManager(resource=self.rsc())
+
     def io_stagingdb(self):
         rsc = polars_mssql_resource.PolarsBCPResource(
             host=os.getenv("TARGET_DB__HOST", ""),
@@ -77,13 +76,11 @@ class TestPolarsBCPIO:
             },
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
-            staging_database="staging"
+            staging_database="staging",
         )
 
-        return polars_mssql_io_manager.PolarsBCPIOManager(
-            resource=rsc
-        )
-    
+        return polars_mssql_io_manager.PolarsBCPIOManager(resource=rsc)
+
     def io_identity(self):
         rsc = polars_mssql_resource.PolarsBCPResource(
             host=os.getenv("TARGET_DB__HOST", ""),
@@ -96,12 +93,10 @@ class TestPolarsBCPIO:
             },
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
-            add_identity_column=True
+            add_identity_column=True,
         )
 
-        return polars_mssql_io_manager.PolarsBCPIOManager(
-            resource=rsc
-        )
+        return polars_mssql_io_manager.PolarsBCPIOManager(resource=rsc)
 
     def test_handle_output_basic(self):
         # setup
@@ -234,18 +229,21 @@ class TestPolarsBCPIO:
         END
         """
 
-        drop = f"""DROP TABLE IF EXISTS {io_manager.resource.database}.{schema}.{table}"""
-        use_sql = 'USE {db}'
+        drop = (
+            f"""DROP TABLE IF EXISTS {io_manager.resource.database}.{schema}.{table}"""
+        )
+        use_sql = "USE {db}"
         with self.connect_mssql() as connection:
-            connection.exec_driver_sql(use_sql.format(db=io_manager.resource.staging_database))
+            connection.exec_driver_sql(
+                use_sql.format(db=io_manager.resource.staging_database)
+            )
             connection.exec_driver_sql(create_schema)
 
             connection.exec_driver_sql(use_sql.format(db=io_manager.resource.database))
             connection.exec_driver_sql(create_schema)
-            
+
             connection.exec_driver_sql(drop)
             connection.exec_driver_sql(drop + "_old")
-
 
         # original structure
         data = pl.DataFrame(
@@ -292,7 +290,11 @@ class TestPolarsBCPIO:
 
         # add the column to table but dont update schema. Table should have column but not be filled.
         with self.connect_mssql() as connection:
-            connection.execute(text(f"ALTER TABLE {io_manager.resource.database}.{schema}.{table} ADD z NVARCHAR(10)"))
+            connection.execute(
+                text(
+                    f"ALTER TABLE {io_manager.resource.database}.{schema}.{table} ADD z NVARCHAR(10)"
+                )
+            )
 
         with build_output_context(
             asset_key=[schema, table],
@@ -331,7 +333,9 @@ class TestPolarsBCPIO:
                 """
                 )
             )
-            connection.execute(text(f"DROP TABLE {io_manager.resource.database}.{schema}.{table}_old"))
+            connection.execute(
+                text(f"DROP TABLE {io_manager.resource.database}.{schema}.{table}_old")
+            )
         with build_output_context(
             asset_key=[schema, table],
             definition_metadata={"asset_schema": asset_schema, "schema": schema},
@@ -410,7 +414,6 @@ class TestPolarsBCPIO:
             resources={"io_manager": io_manager},
         )
 
-
     def test_handle_output_time_partition_staging(self):
         io_manager = self.io_stagingdb()
 
@@ -420,7 +423,6 @@ class TestPolarsBCPIO:
 
         with self.connect_mssql() as connection:
             connection.execute(text(drop))
-
 
         asset_schema = [
             {"name": "a", "alias": "a", "type": "INT", "identity": True},
@@ -566,7 +568,7 @@ class TestPolarsBCPIO:
                 "add_row_hash": False,
                 "add_load_datetime": False,
                 "add_load_uuid": False,
-                "schema": schema
+                "schema": schema,
             },
         )
         def my_asset(context):
@@ -620,15 +622,14 @@ class TestPolarsBCPIO:
             }
         )
 
-
         io_manager = self.io()
         materialize(
             assets=[my_asset],
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            data = connection.exec_driver_sql(f'SELECT * FROM {schema}.{table}')
-            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb'), (1, None)]
+            data = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert data.fetchall() == [(1, "a\t\nb"), (1, "a\t\tb"), (1, None)]
 
     def test_absent_identity(self):
         schema = "test_polars_bcp_schema"
@@ -664,27 +665,26 @@ class TestPolarsBCPIO:
             }
         )
 
-
         io_manager = self.io()
         materialize(
             assets=[my_asset],
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            result = connection.exec_driver_sql(f'SELECT * FROM {schema}.{table}')
-            assert result.fetchall() == [(1, 'a\t\nb'), (2, 'a\t\tb')]
- 
+            result = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert result.fetchall() == [(1, "a\t\nb"), (2, "a\t\tb")]
+
         materialize(
             assets=[my_asset],
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            result = connection.exec_driver_sql(f'SELECT * FROM {schema}.{table}')
-            assert result.fetchall() == [(3, 'a\t\nb'), (4, 'a\t\tb')]
+            result = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert result.fetchall() == [(3, "a\t\nb"), (4, "a\t\tb")]
 
     def test_xml(self):
-        schema = 'test_polars_bcp_schema'
-        table = 'test_polars_bcp_table_xml'
+        schema = "test_polars_bcp_schema"
+        table = "test_polars_bcp_table_xml"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
@@ -693,7 +693,7 @@ class TestPolarsBCPIO:
             connection.execute(text(drop))
 
         asset_schema = [
-            {"name": "a", "type": "INT", 'identity': True},
+            {"name": "a", "type": "INT", "identity": True},
             {"name": "xml_data", "type": "XML"},
         ]
 
@@ -708,13 +708,19 @@ class TestPolarsBCPIO:
             },
         )
         def my_asset(context):
-            return pl.DataFrame({'xml_data': ["""<?xml version="1.0" encoding="UTF-8"?>
+            return pl.DataFrame(
+                {
+                    "xml_data": [
+                        """<?xml version="1.0" encoding="UTF-8"?>
                 <note>
                 <to>Tove</to>
                 <from>Jani</from>
                 <heading>Reminder</heading>
                 <body>Don't forget me this weekend!</body>
-                </note>""".encode('utf-8').hex()]})
+                </note>""".encode("utf-8").hex()
+                    ]
+                }
+            )
 
             # original structure
 
@@ -724,14 +730,17 @@ class TestPolarsBCPIO:
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            result = connection.exec_driver_sql(
-                f'SELECT * FROM {schema}.{table}')
-            assert result.fetchall() == [(
-                1, "<note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Don't forget me this weekend!</body></note>")]
+            result = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert result.fetchall() == [
+                (
+                    1,
+                    "<note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Don't forget me this weekend!</body></note>",
+                )
+            ]
 
     def test_geo(self):
-        schema = 'test_polars_bcp_schema'
-        table = 'test_polars_bcp_table_geo'
+        schema = "test_polars_bcp_schema"
+        table = "test_polars_bcp_table_geo"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
@@ -740,8 +749,8 @@ class TestPolarsBCPIO:
             connection.execute(text(drop))
 
         asset_schema = [
-            {"name": "a", "type": "INT", 'identity': True},
-            {"name": "geo_data", "type": "GEOGRAPHY", 'srid': 4326},
+            {"name": "a", "type": "INT", "identity": True},
+            {"name": "geo_data", "type": "GEOGRAPHY", "srid": 4326},
         ]
 
         @asset(
@@ -755,7 +764,13 @@ class TestPolarsBCPIO:
             },
         )
         def my_asset(context):
-            return pl.DataFrame({'geo_data': ['0103000000010000000500000000000000004054C0000000000080464000000000004054C0000000000000464000000000000054C0000000000000464000000000000054C0000000000080464000000000004054C00000000000804640']})
+            return pl.DataFrame(
+                {
+                    "geo_data": [
+                        "0103000000010000000500000000000000004054C0000000000080464000000000004054C0000000000000464000000000000054C0000000000000464000000000000054C0000000000080464000000000004054C00000000000804640"
+                    ]
+                }
+            )
 
             # original structure
 
@@ -765,29 +780,23 @@ class TestPolarsBCPIO:
             resources={"io_manager": io_manager},
         )
 
-
     def test_load_input(self):
         io_manager = self.io()
-        @asset(key_prefix=['dbo'])
+
+        @asset(key_prefix=["dbo"])
         def polars_base_asset():
             with self.connect_mssql() as connection:
-                connection.exec_driver_sql(
-                    'DROP TABLE IF EXISTS dbo.polars_base_asset'
-                )
+                connection.exec_driver_sql("DROP TABLE IF EXISTS dbo.polars_base_asset")
                 connection.exec_driver_sql(
                     "SELECT 1 as col1, 'b' as col2 INTO dbo.polars_base_asset"
                 )
 
-        @asset(key_prefix=['dbo'], io_manager_key='io_manager')
-        def load_input_asset(polars_base_asset: pl.DataFrame):
-            ...
+        @asset(key_prefix=["dbo"], io_manager_key="io_manager")
+        def load_input_asset(polars_base_asset: pl.DataFrame): ...
 
         materialize(
-            assets=[
-                polars_base_asset,
-                load_input_asset
-            ],
-            resources={'io_manager': io_manager}
+            assets=[polars_base_asset, load_input_asset],
+            resources={"io_manager": io_manager},
         )
 
     def test_identity_io(self):
@@ -811,7 +820,7 @@ class TestPolarsBCPIO:
                 "add_row_hash": False,
                 "add_load_datetime": False,
                 "add_load_uuid": False,
-                "schema": schema
+                "schema": schema,
             },
         )
         def my_asset(context):
@@ -839,13 +848,12 @@ class TestPolarsBCPIO:
             r = con.exec_driver_sql(s)
             res = r.fetchall()
 
-            assert {_[0] for _ in res} == {'id', 'b'}
+            assert {_[0] for _ in res} == {"id", "b"}
 
             s = f"select max(id) from {schema}.{table}"
             r = con.exec_driver_sql(s)
             res = r.fetchone()
             assert res[0] == 4
-
 
     def test_identity_io_as_arg(self):
         schema = "test_polars_bcp_schema"
@@ -869,7 +877,7 @@ class TestPolarsBCPIO:
                 "add_load_datetime": False,
                 "add_load_uuid": False,
                 "add_identity_column": True,
-                "schema": schema
+                "schema": schema,
             },
         )
         def my_asset(context):
@@ -897,17 +905,16 @@ class TestPolarsBCPIO:
             r = con.exec_driver_sql(s)
             res = r.fetchall()
 
-            assert {_[0] for _ in res} == {'id', 'b'}
+            assert {_[0] for _ in res} == {"id", "b"}
 
             s = f"select max(id) from {schema}.{table}"
             r = con.exec_driver_sql(s)
             res = r.fetchone()
             assert res[0] == 4
 
-
     def test_load_json(self):
-        schema = 'test_polars_bcp_schema'
-        table = 'test_polars_bcp_table_json'
+        schema = "test_polars_bcp_schema"
+        table = "test_polars_bcp_table_json"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
@@ -916,7 +923,7 @@ class TestPolarsBCPIO:
             connection.execute(text(drop))
 
         asset_schema = [
-            {"name": "a", "type": "INT", 'identity': True},
+            {"name": "a", "type": "INT", "identity": True},
             {"name": "json_data", "type": "NVARCHAR"},
         ]
 
@@ -931,8 +938,8 @@ class TestPolarsBCPIO:
             },
         )
         def my_asset(context):
-            json_data = json.dumps({'hi': 1, "nest": {'ed': 'value'}})
-            return pl.DataFrame({'json_data': [json_data]})
+            json_data = json.dumps({"hi": 1, "nest": {"ed": "value"}})
+            return pl.DataFrame({"json_data": [json_data]})
 
             # original structure
 
@@ -943,6 +950,6 @@ class TestPolarsBCPIO:
         )
         with self.connect_mssql() as connection:
             result = connection.exec_driver_sql(
-                f"SELECT a, cast(JSON_VALUE(json_data, '$.hi') as int), JSON_VALUE(json_data, '$.nest.ed') FROM {schema}.{table}")
-            assert result.fetchall() == [(
-                1, 1, 'value')]
+                f"SELECT a, cast(JSON_VALUE(json_data, '$.hi') as int), JSON_VALUE(json_data, '$.nest.ed') FROM {schema}.{table}"
+            )
+            assert result.fetchall() == [(1, 1, "value")]
