@@ -59,9 +59,7 @@ class TestPandasBCPIO:
             bcp_arguments={"-u": ""},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
-        return pandas_mssql_io_manager.PandasBCPIOManager(
-            resource=rsc
-        )
+        return pandas_mssql_io_manager.PandasBCPIOManager(resource=rsc)
 
     def test_handle_output_basic(self):
         # setup
@@ -101,16 +99,14 @@ class TestPandasBCPIO:
         # first run
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
         # second run
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
@@ -125,20 +121,17 @@ class TestPandasBCPIO:
         )
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
         # add the column to table but dont update schema. Table should have column but not be filled.
         with self.connect_mssql() as connection:
-            connection.execute(
-                text(f"ALTER TABLE {schema}.{table} ADD z NVARCHAR(10)"))
+            connection.execute(text(f"ALTER TABLE {schema}.{table} ADD z NVARCHAR(10)"))
 
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
@@ -147,8 +140,7 @@ class TestPandasBCPIO:
 
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
@@ -177,14 +169,12 @@ class TestPandasBCPIO:
             connection.execute(text(f"DROP TABLE {schema}.{table}_old"))
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
         with build_output_context(
             asset_key=[schema, table],
-            definition_metadata={
-                "asset_schema": asset_schema, "schema": schema},
+            definition_metadata={"asset_schema": asset_schema, "schema": schema},
         ) as ctx:
             io_manager.handle_output(ctx, data)
 
@@ -342,7 +332,7 @@ class TestPandasBCPIO:
                 "add_row_hash": False,
                 "add_load_datetime": False,
                 "add_load_uuid": False,
-                "schema": schema
+                "schema": schema,
             },
         )
         def my_asset(context):
@@ -402,9 +392,8 @@ class TestPandasBCPIO:
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            data = connection.exec_driver_sql(
-                f'SELECT * FROM {schema}.{table}')
-            assert data.fetchall() == [(1, 'a\t\nb'), (1, 'a\t\tb'), (1, None)]
+            data = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert data.fetchall() == [(1, "a\t\nb"), (1, "a\t\tb"), (1, None)]
 
     def test_absent_identity(self):
         schema = "test_pandas_bcp_schema"
@@ -446,22 +435,20 @@ class TestPandasBCPIO:
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            result = connection.exec_driver_sql(
-                f'SELECT * FROM {schema}.{table}')
-            assert result.fetchall() == [(1, 'a\t\nb'), (2, 'a\t\tb')]
+            result = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert result.fetchall() == [(1, "a\t\nb"), (2, "a\t\tb")]
 
         materialize(
             assets=[my_asset],
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            result = connection.exec_driver_sql(
-                f'SELECT * FROM {schema}.{table}')
-            assert result.fetchall() == [(3, 'a\t\nb'), (4, 'a\t\tb')]
+            result = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert result.fetchall() == [(3, "a\t\nb"), (4, "a\t\tb")]
 
     def test_xml(self):
-        schema = 'test_pandas_bcp_schema'
-        table = 'test_pandas_bcp_table_xml'
+        schema = "test_pandas_bcp_schema"
+        table = "test_pandas_bcp_table_xml"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
@@ -470,7 +457,7 @@ class TestPandasBCPIO:
             connection.execute(text(drop))
 
         asset_schema = [
-            {"name": "a", "type": "INT", 'identity': True},
+            {"name": "a", "type": "INT", "identity": True},
             {"name": "xml_data", "type": "XML"},
         ]
 
@@ -485,13 +472,19 @@ class TestPandasBCPIO:
             },
         )
         def my_asset(context):
-            return pd.DataFrame({'xml_data': ["""<?xml version="1.0" encoding="UTF-8"?>
+            return pd.DataFrame(
+                {
+                    "xml_data": [
+                        """<?xml version="1.0" encoding="UTF-8"?>
                 <note>
                 <to>Tove</to>
                 <from>Jani</from>
                 <heading>Reminder</heading>
                 <body>Don't forget me this weekend!</body>
-                </note>""".encode('utf-8').hex()]})
+                </note>""".encode("utf-8").hex()
+                    ]
+                }
+            )
 
             # original structure
 
@@ -501,14 +494,17 @@ class TestPandasBCPIO:
             resources={"io_manager": io_manager},
         )
         with self.connect_mssql() as connection:
-            result = connection.exec_driver_sql(
-                f'SELECT * FROM {schema}.{table}')
-            assert result.fetchall() == [(
-                1, "<note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Don't forget me this weekend!</body></note>")]
+            result = connection.exec_driver_sql(f"SELECT * FROM {schema}.{table}")
+            assert result.fetchall() == [
+                (
+                    1,
+                    "<note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Don't forget me this weekend!</body></note>",
+                )
+            ]
 
     def test_geo(self):
-        schema = 'test_pandas_bcp_schema'
-        table = 'test_pandas_bcp_table_geo'
+        schema = "test_pandas_bcp_schema"
+        table = "test_pandas_bcp_table_geo"
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
 
         drop = f"""DROP TABLE IF EXISTS {schema}.{table}"""
@@ -517,8 +513,8 @@ class TestPandasBCPIO:
             connection.execute(text(drop))
 
         asset_schema = [
-            {"name": "a", "type": "INT", 'identity': True},
-            {"name": "geo_data", "type": "GEOGRAPHY", 'srid': 4326},
+            {"name": "a", "type": "INT", "identity": True},
+            {"name": "geo_data", "type": "GEOGRAPHY", "srid": 4326},
         ]
 
         @asset(
@@ -532,7 +528,13 @@ class TestPandasBCPIO:
             },
         )
         def my_asset(context):
-            return pd.DataFrame({'geo_data': ['0103000000010000000500000000000000004054C0000000000080464000000000004054C0000000000000464000000000000054C0000000000000464000000000000054C0000000000080464000000000004054C00000000000804640']})
+            return pd.DataFrame(
+                {
+                    "geo_data": [
+                        "0103000000010000000500000000000000004054C0000000000080464000000000004054C0000000000000464000000000000054C0000000000000464000000000000054C0000000000080464000000000004054C00000000000804640"
+                    ]
+                }
+            )
 
             # original structure
 
@@ -541,7 +543,6 @@ class TestPandasBCPIO:
             assets=[my_asset],
             resources={"io_manager": io_manager},
         )
-
 
     # def test_geo(self):
     #     schema = "dbo"
@@ -615,27 +616,21 @@ class TestPandasBCPIO:
     #         resources={"io_manager": io_manager},
     #     )
 
-
     def test_load_input(self):
         io_manager = self.io()
-        @asset(key_prefix=['dbo'])
+
+        @asset(key_prefix=["dbo"])
         def pandas_base_asset():
             with self.connect_mssql() as connection:
-                connection.exec_driver_sql(
-                    'DROP TABLE IF EXISTS dbo.pandas_base_asset'
-                )
+                connection.exec_driver_sql("DROP TABLE IF EXISTS dbo.pandas_base_asset")
                 connection.exec_driver_sql(
                     "SELECT 1 as col1, 'b' as col2 INTO dbo.pandas_base_asset"
                 )
 
-        @asset(key_prefix=['dbo'], io_manager_key='io_manager')
-        def load_input_asset(pandas_base_asset: pd.DataFrame):
-            ...
+        @asset(key_prefix=["dbo"], io_manager_key="io_manager")
+        def load_input_asset(pandas_base_asset: pd.DataFrame): ...
 
         materialize(
-            assets=[
-                pandas_base_asset,
-                load_input_asset
-            ],
-            resources={'io_manager': io_manager}
+            assets=[pandas_base_asset, load_input_asset],
+            resources={"io_manager": io_manager},
         )

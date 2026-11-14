@@ -1,37 +1,39 @@
 import dagster as dg
+from dagster_mssql_bcp.bcp_core.bcp_core import (
+    BCPConnectionConfig,
+    BCPCore,
+    AssetSchema,
+)
 
-from typing import Any
 
-class BCPResource(dg.ConfigurableResource):
-    ...
-    host: str
-    port: str
-    database: str
+class BCPResource(BCPConnectionConfig, dg.ConfigurableResource):
+    def load_bcp(
+        self,
+        data,
+        schema: str,
+        table: str,
+        asset_schema: list[dict] | AssetSchema | None = None,
+        add_row_hash: bool | None = None,
+        add_load_datetime: bool | None = None,
+        add_load_uuid: bool | None = None,
+        add_identity_column: bool | None = None,
+        uuid: str | None = None,
+        process_datetime: bool | None = None,
+        process_replacements: bool | None = None,
+    ):
+        return self.get_engine().load_bcp(
+            data=data,
+            schema=schema,
+            table=table,
+            asset_schema=asset_schema,
+            add_row_hash=add_row_hash,
+            add_load_datetime=add_load_datetime,
+            add_load_uuid=add_load_uuid,
+            add_identity_column=add_identity_column,
+            uuid=uuid,
+            process_datetime=process_datetime,
+            process_replacements=process_replacements,
+        )
 
-    username: str | None
-    password: str | None
-
-    query_props: dict[str, Any] = {}
-
-    bcp_arguments: dict[str, str] = {}
-    bcp_path: str = 'bcp'
-
-    driver: str = "ODBC Driver 18 for SQL Server"
-
-    process_datetime: bool = True
-    process_replacements: bool = True
-
-    add_row_hash: bool = True
-    add_load_datetime: bool = True
-    add_load_uuid: bool = True
-    add_identity_column: bool = False
-
-    row_hash_column_name: str = "row_hash"
-    load_uuid_column_name: str = "load_uuid"
-    load_datetime_column_name: str = "load_datetime"
-    identity_column_name: str = 'id'
-
-    _new_line_character: str = "__NEWLINE__"
-    _tab_character: str = "__TAB__"
-
-    staging_database: str | None = None
+    def get_engine(self) -> BCPCore:
+        raise NotImplementedError("")

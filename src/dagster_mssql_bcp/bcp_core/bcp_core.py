@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Annotated
 
 import re
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
@@ -18,22 +18,44 @@ from .asset_schema import AssetSchema
 from .bcp_logger import BCPLogger
 from .mssql_connection import connect_mssql
 
+import pydantic
 
-class BCPCore(ABC):
+from pydantic import BeforeValidator, model_validator
+
+
+def _convert_query_props_to_string(query_props):
+    """This maps boolean properties to the yes or no values
+    Because of the underlying YAML in dagster launch pad it converts yes/no to boolean.
+    For the defined properties, this maps it back to the proper Yes/No.
+
+    https://learn.microsoft.com/en-us/sql/relational-databases/native-client/applications/using-connection-string-keywords-with-sql-server-native-client?view=sql-server-ver15
     """
-    Generalizes the process of loading data into a SQL Server database using BCP.
+    if query_props is None:
+        return {}
 
-    Concrete implementations should implement the abstract methods to provide the necessary functionality for the specific data type.
-    """
+    mappings = {"multisubnetfailover": {True: "Yes", False: "No"}}
+    for _ in query_props:
+        prop_value = query_props[_]
+        if _.lower() in mappings:
+            prop_value = mappings[_.lower()].get(prop_value)
+        elif isinstance(prop_value, bool):
+            prop_value = "yes" if prop_value else "no"
 
+        query_props[_] = str(prop_value)
+
+    return query_props
+
+
+class BCPConnectionConfig(pydantic.BaseModel):
     host: str
     port: str
     database: str
+    username: str | None = None
+    password: str | None = None
 
-    username: str | None
-    password: str | None
-
-    query_props: dict[str, Any] = {}
+    query_props: Annotated[
+        dict[str, Any], BeforeValidator(_convert_query_props_to_string)
+    ] = {}
 
     bcp_arguments: dict[str, str] = {}
     bcp_path: str = "bcp"
@@ -56,111 +78,24 @@ class BCPCore(ABC):
     _new_line_character: str = "__NEWLINE__"
     _tab_character: str = "__TAB__"
 
-    staging_database: str | None = None
+    staging_database: str = ""
 
-    def __init__(
-        self,
-        host: str,
-        database: str,
-        port: str | int = "1433",
-        username: str | None = None,
-        password: str | None = None,
-        bcp_arguments: dict[str, str] = {},
-        driver: str = "ODBC Driver 18 for SQL Server",
-        query_props: dict[str, str] = {},
-        add_row_hash: bool = True,
-        add_load_datetime: bool = True,
-        add_load_uuid: bool = True,
-        add_identity_column: bool = False,
-        bcp_path: str | None = None,
-        process_datetime: bool = True,
-        process_replacements: bool = True,
-        row_hash_column_name: str = "row_hash",
-        load_uuid_column_name: str = "load_uuid",
-        load_datetime_column_name: str = "load_datetime",
-        identity_column_name: str = "id",
-        staging_database: str | None = None,
-    ):
-        """
-        Initialize the BCP core configuration.
-
-        Args:
-            host (str): The hostname of SQL Server.
-            port (str | int): The port number of SQL Server.
-            database (str): The name of the database.
-            username (str | None, optional): The username for authentication. Defaults to None.
-            password (str | None, optional): The password for authentication. Defaults to None.
-            bcp_arguments (dict[str, str], optional): Additional arguments for BCP. Defaults to {}.
-            driver (str, optional): The ODBC driver to use. Defaults to "ODBC Driver 18 for SQL Server".
-            query_props (dict[str, str], optional): Properties for the query dict. Defaults to {}.
-            add_row_hash (bool, optional): Whether to add a row hash. Defaults to True.
-            add_load_datetime (bool, optional): Whether to add a load timestamp. Defaults to True.
-            add_load_uuid (bool, optional): Whether to add a load UUID. Defaults to True.
-            bcp_path (str | None, optional): The path to the BCP executable. Defaults to None.
-            process_datetime (bool, optional): Whether to process datetime fields. Defaults to True.
-            process_replacements (bool, optional): Whether to process replacements. Defaults to True.
-        """
-        self.host = host
-        self.port = str(port)
-        self.database = database
-        self.username = username
-        self.password = password
-
-        self.add_row_hash = add_row_hash
-        self.add_load_datetime = add_load_datetime
-        self.add_load_uuid = add_load_uuid
-        self.add_identity_column = add_identity_column
-
-        self.driver = driver
-
-        query_props = self._convert_query_props_to_string(query_props)
-        self.query_props = query_props
-
-        self.bcp_arguments = bcp_arguments
-
-        self.process_datetime = process_datetime
-        self.process_replacements = process_replacements
-
-        if bcp_path is not None:
-            self.bcp_path = bcp_path
-        else:
-            self.bcp_path = "bcp"
-
-        self.row_hash_column_name = row_hash_column_name
-        self.load_uuid_column_name = load_uuid_column_name
-        self.load_datetime_column_name = load_datetime_column_name
-        self.identity_column_name = identity_column_name
-
-        if staging_database is None:
-            self.staging_database = database
-        else:
-            self.staging_database = staging_database
-
-    def _get_staging_database(self):
-        """Returns the staging database to use."""
-        if self.staging_database is None:
-            return self.database
-        else:
-            return self.staging_database
-
-    def _convert_query_props_to_string(self, query_props):
-        """This maps boolean properties to the yes or no values
-        Because of the underlying YAML in dagster launch pad it converts yes/no to boolean.
-        For the defined properties, this maps it back to the proper Yes/No.
-
-        https://learn.microsoft.com/en-us/sql/relational-databases/native-client/applications/using-connection-string-keywords-with-sql-server-native-client?view=sql-server-ver15
-        """
-        mappings = {"multisubnetfailover": {True: "Yes", False: "No"}}
-        for _ in query_props:
-            prop_value = query_props[_]
-            if _.lower() in mappings:
-                prop_value = mappings[_.lower()].get(prop_value)
-            elif isinstance(prop_value, bool):
-                prop_value = "yes" if prop_value else "no"
-
-            query_props[_] = prop_value
-
-        return query_props
+    @model_validator(mode="before")
+    @classmethod
+    def set_staging_database(cls, data: Any):
+        if data.get('staging_database') is None:
+            data['staging_database'] = data.get('database')
+        
+        new_bcp = {}
+        c_bcp = data.get('bcp_arguments', {})
+        for _ in c_bcp:
+            if isinstance(c_bcp[_], int):
+                new_bcp[_] = str(c_bcp[_])
+            else:
+                new_bcp[_] = c_bcp[_]
+            
+        data['bcp_arguments'] = new_bcp
+        return data
 
     @property
     def config(self):
@@ -174,7 +109,7 @@ class BCPCore(ABC):
             add_load_datetime=self.add_load_datetime,
             add_load_uuid=self.add_load_uuid,
             driver=self.driver,
-            query_props=self._convert_query_props_to_string(self.query_props),
+            query_props=self.query_props,
             bcp_arguments=self.bcp_arguments,
             bcp_path=self.bcp_path,
             process_datetime=self.process_datetime,
@@ -209,8 +144,15 @@ class BCPCore(ABC):
             query={
                 "driver": self.driver,
             }
-            | self._convert_query_props_to_string(self.query_props),
+            | self.query_props,
         )
+
+
+class BCPCore():
+    config: BCPConnectionConfig
+
+    def __init__(self, config: BCPConnectionConfig) -> None:
+        self.config = config
 
     def load_bcp(
         self,
@@ -243,25 +185,25 @@ class BCPCore(ABC):
             dict: A dictionary containing the UUID of the load, the row count of the new data, and any schema deltas.
         """
         if process_datetime is None:
-            process_datetime = self.process_datetime
+            process_datetime = self.config.process_datetime
         if process_replacements is None:
-            process_replacements = self.process_replacements
+            process_replacements = self.config.process_replacements
 
         if add_row_hash is None:
-            add_row_hash = self.add_row_hash
+            add_row_hash = self.config.add_row_hash
         if add_load_datetime is None:
-            add_load_datetime = self.add_load_datetime
+            add_load_datetime = self.config.add_load_datetime
         if add_load_uuid is None:
-            add_load_uuid = self.add_load_uuid
+            add_load_uuid = self.config.add_load_uuid
         if add_identity_column is None:
-            add_identity_column = self.add_identity_column
+            add_identity_column = self.config.add_identity_column
 
         asset_schema = self._parse_asset_schema(schema, table, asset_schema)
 
         if add_identity_column:
             asset_schema.add_column(
                 {
-                    "name": self.identity_column_name,
+                    "name": self.config.identity_column_name,
                     "type": "BIGINT",
                     "identity": True,
                 }
@@ -279,7 +221,7 @@ class BCPCore(ABC):
             asset_schema, add_row_hash, add_load_datetime, add_load_uuid
         )
 
-        with connect_mssql(self.connection_config) as connection:
+        with connect_mssql(self.config.connection_config) as connection:
             data, schema_deltas = self._pre_bcp_stage(
                 connection=connection,
                 data=data,
@@ -297,7 +239,7 @@ class BCPCore(ABC):
 
         self._bcp_stage(data, schema, staging_table)
 
-        with connect_mssql(self.connection_config) as connection:
+        with connect_mssql(self.config.connection_config) as connection:
             new_line_count = self._post_bcp_stage(
                 connection,
                 data,
@@ -387,7 +329,9 @@ class BCPCore(ABC):
         get_dagster_logger().debug("Adding identity columns to frame")
         data = self._add_identity_columns(data=data, asset_schema=asset_schema)
 
-        sql_structure = self._get_sql_columns(connection, self.database, schema, table)
+        sql_structure = self._get_sql_columns(
+            connection, self.config.database, schema, table
+        )
         frame_columns = self._get_frame_columns(data)
 
         schema_deltas = {}
@@ -472,7 +416,9 @@ class BCPCore(ABC):
     def _pre_processing_start_hook(self, dataframe):
         return dataframe
 
-    def _parse_asset_schema(self, schema, table, asset_schema):
+    def _parse_asset_schema(
+        self, schema, table, asset_schema
+    ):
         """
         Parses and returns the asset schema for a given table.
         If `asset_schema` is None, it retrieves the schema from the database
@@ -489,15 +435,15 @@ class BCPCore(ABC):
             AssetSchema: The parsed asset schema.
         """
         if asset_schema is None:
-            with connect_mssql(self.connection_config) as connection:
+            with connect_mssql(self.config.connection_config) as connection:
                 asset_schema = AssetSchema.get_asset_schema_from_db(
                     connection=connection,
                     schema=schema,
                     table=table,
                     exclude_columns=[
-                        self.row_hash_column_name,
-                        self.load_uuid_column_name,
-                        self.load_datetime_column_name,
+                        self.config.row_hash_column_name,
+                        self.config.load_uuid_column_name,
+                        self.config.load_datetime_column_name,
                     ],
                 )
         elif isinstance(asset_schema, list):
@@ -514,7 +460,11 @@ class BCPCore(ABC):
 
     # region pre load
     def _add_meta_to_asset_schema(
-        self, asset_schema, add_row_hash, add_load_datetime, add_load_uuid
+        self,
+        asset_schema,
+        add_row_hash,
+        add_load_datetime,
+        add_load_uuid,
     ) -> AssetSchema:
         """
         Adds metadata columns to the asset schema if specified.
@@ -532,30 +482,30 @@ class BCPCore(ABC):
         get_dagster_logger().debug("adding meta to asset schema")
 
         schema_columns = asset_schema.get_columns()
-        if add_row_hash and self.row_hash_column_name not in schema_columns:
+        if add_row_hash and self.config.row_hash_column_name not in schema_columns:
             asset_schema.add_column(
                 {
-                    "name": self.row_hash_column_name,
+                    "name": self.config.row_hash_column_name,
                     "type": "NVARCHAR",
                     "length": 200,
                     "hash": False,
                 }
             )
 
-        if add_load_uuid and self.load_uuid_column_name not in schema_columns:
+        if add_load_uuid and self.config.load_uuid_column_name not in schema_columns:
             asset_schema.add_column(
                 {
-                    "name": self.load_uuid_column_name,
+                    "name": self.config.load_uuid_column_name,
                     "type": "NVARCHAR",
                     "length": 200,
                     "hash": False,
                 }
             )
 
-        if add_load_datetime and self.load_uuid_column_name not in schema_columns:
+        if add_load_datetime and self.config.load_uuid_column_name not in schema_columns:
             asset_schema.add_column(
                 {
-                    "name": self.load_datetime_column_name,
+                    "name": self.config.load_datetime_column_name,
                     "type": "DATETIME2",
                     "hash": False,
                 }
@@ -565,8 +515,8 @@ class BCPCore(ABC):
     def _create_target_tables(
         self, schema, table, asset_schema: AssetSchema, staging_table, connection
     ):
-        self._create_schema(connection, self._get_staging_database(), schema)
-        self._create_schema(connection, self.database, schema)
+        self._create_schema(connection, self.config.staging_database, schema)
+        self._create_schema(connection, self.config.database, schema)
 
         # staging
         get_dagster_logger().debug(
@@ -574,14 +524,14 @@ class BCPCore(ABC):
         )
         connection.execute(
             text(
-                f'DROP TABLE IF EXISTS "{self._get_staging_database()}"."{schema}"."{staging_table}"'
+                f'DROP TABLE IF EXISTS "{self.config.staging_database}"."{schema}"."{staging_table}"'
             )
         )
 
         # problem is this is creating a table with identity but we have filtered out the identity column
         self._create_table(
             connection,
-            self._get_staging_database(),
+            self.config.staging_database,
             schema,
             staging_table,
             asset_schema.get_sql_columns(True) + ["should_process_replacements BIT"],
@@ -589,7 +539,7 @@ class BCPCore(ABC):
         # target db
         self._create_table(
             connection,
-            self.database,
+            self.config.database,
             schema,
             table,
             asset_schema.get_sql_columns(),
@@ -888,16 +838,16 @@ class BCPCore(ABC):
         """
 
         bcp_args = {}
-        if self.username is not None:
-            bcp_args["-U"] = self.username
-        if self.password is not None:
-            bcp_args["-P"] = self.password
+        if self.config.username is not None:
+            bcp_args["-U"] = self.config.username
+        if self.config.password is not None:
+            bcp_args["-P"] = self.config.password
 
-        bcp_args["-d"] = self._get_staging_database()
-        bcp_args["-S"] = f'"{self.host},{self.port}"'
+        bcp_args["-d"] = self.config.staging_database
+        bcp_args["-S"] = f'"{self.config.host},{self.config.port}"'
 
         bcp_args = bcp_args | additional_args
-        bcp_args = bcp_args | self.bcp_arguments
+        bcp_args = bcp_args | self.config.bcp_arguments
 
         bcp_args_str = " ".join([f"{_} {bcp_args[_]}" for _ in bcp_args])
         return bcp_args_str
@@ -924,7 +874,7 @@ class BCPCore(ABC):
         args_str = self._parse_bcp_args(bcp_args)
 
         # This generates a format file for the bcp command
-        format_cmd = f"""{self.bcp_path} [{schema}].[{table}] format nul {args_str}"""
+        format_cmd = f"""{self.config.bcp_path} [{schema}].[{table}] format nul {args_str}"""
         result = execute_shell_command(format_cmd, "STREAM", BCPLogger("BCP"))
         if result[1] != 0:
             get_dagster_logger().error(result[0])
@@ -964,7 +914,7 @@ class BCPCore(ABC):
             }
             args_str = self._parse_bcp_args(bcp_args)
 
-            insert_cmd = f"""{self.bcp_path} {schema}.{bcp_table} in "{csv_file_path}" {args_str}"""  # noqa
+            insert_cmd = f"""{self.config.bcp_path} {schema}.{bcp_table} in "{csv_file_path}" {args_str}"""  # noqa
 
             results = execute_shell_command(insert_cmd, "STREAM", BCPLogger("BCP"))
             if "Error" in results[0]:
@@ -1016,7 +966,7 @@ class BCPCore(ABC):
         """
         get_dagster_logger().debug("Validating BCP load")
         validate_load_sql = (
-            f"SELECT COUNT(*) FROM {self._get_staging_database()}.{schema}.{bcp_table}"
+            f"SELECT COUNT(*) FROM {self.config.staging_database}.{schema}.{bcp_table}"
         )
         cursor = connection.execute(
             text(validate_load_sql.format(schema=schema, table=bcp_table))
@@ -1046,8 +996,8 @@ class BCPCore(ABC):
             None
         """
         get_dagster_logger().debug("Replacing temporary tab and newline characters")
-        new_line = self._new_line_character  # type: ignore
-        tab = self._tab_character  # type: ignore
+        new_line = self.config._new_line_character  # type: ignore
+        tab = self.config._tab_character  # type: ignore
         update_sets = [
             f"""{column} = REPLACE(REPLACE({column}, '{new_line}', CHAR(10)), '{tab}', CHAR(9))"""
             for column in asset_schema.get_text_columns()
@@ -1065,7 +1015,7 @@ class BCPCore(ABC):
         """
 
         update_sql_str = update_sql.format(
-            db=self._get_staging_database(),
+            db=self.config.staging_database,
             schema=schema,
             table=table,
             set_columns=",\n".join(update_sets),
@@ -1102,8 +1052,8 @@ class BCPCore(ABC):
 
         get_dagster_logger().debug("Inserting data")
         insert_sql = f"""
-        INSERT INTO {self.database}.{schema}.{table} ({schema_columns_str})
-        SELECT {schema_with_cast_str} FROM {self._get_staging_database()}.{schema}.{bcp_table}
+        INSERT INTO {self.config.database}.{schema}.{table} ({schema_columns_str})
+        SELECT {schema_with_cast_str} FROM {self.config.staging_database}.{schema}.{bcp_table}
         """
         connection.execute(
             text(
@@ -1117,7 +1067,7 @@ class BCPCore(ABC):
         )
         get_dagster_logger().debug("dropping BCP table")
         connection.execute(
-            text(f"DROP TABLE {self._get_staging_database()}.{schema}.{bcp_table}")
+            text(f"DROP TABLE {self.config.staging_database}.{schema}.{bcp_table}")
         )
 
     def _calculate_row_hash(
@@ -1144,8 +1094,8 @@ class BCPCore(ABC):
         hash_sql = f"""CONVERT(NVARCHAR(32), HASHBYTES('MD5', {col_sql_str}), 2)"""
 
         update_sql = f"""
-        UPDATE {self._get_staging_database()}.{schema}.{table}
-        SET {self.row_hash_column_name} = {hash_sql}
+        UPDATE {self.config.staging_database}.{schema}.{table}
+        SET {self.config.row_hash_column_name} = {hash_sql}
         """
 
         connection.execute(text(update_sql))

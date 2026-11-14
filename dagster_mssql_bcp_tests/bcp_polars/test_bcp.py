@@ -5,8 +5,9 @@ import polars as pl
 import pytest
 from sqlalchemy import URL, create_engine, text
 
-from dagster_mssql_bcp.bcp_polars import polars_mssql_bcp
+from dagster_mssql_bcp.bcp_polars import polars_mssql_bcp, PolarsBCP
 from dagster_mssql_bcp.bcp_core.asset_schema import AssetSchema
+from dagster_mssql_bcp.bcp_core import BCPConnectionConfig
 
 import polars.testing as pl_testing
 
@@ -20,8 +21,8 @@ from pathlib import Path
 
 class TestPolarsBCP:
     @pytest.fixture
-    def polars_io(self):
-        return polars_mssql_bcp.PolarsBCP(
+    def polars_config(self):
+        return BCPConnectionConfig(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -30,9 +31,13 @@ class TestPolarsBCP:
             query_props={
                 "TrustServerCertificate": "yes",
             },
-            bcp_arguments={"-u": "", "-b": 20},
+            bcp_arguments={"-u": "", "-b": "20"},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
+
+    @pytest.fixture
+    def polars_io(self, polars_config):
+        return polars_mssql_bcp.PolarsBCP(config=polars_config)
 
     @contextmanager
     def connect_mssql(self):
@@ -72,7 +77,9 @@ class TestPolarsBCP:
         for schema, table in tables:
             self.cleanup_table(connection, schema, table)
 
-    def test_bcp_load(self, polars_io: polars_mssql_bcp.PolarsBCP):
+    def test_bcp_load(
+        self, polars_io: polars_mssql_bcp.PolarsBCP, polars_config: BCPConnectionConfig
+    ):
         schema = "test"
         table = "table_data"
         with self.connect_mssql() as con:
@@ -85,7 +92,6 @@ class TestPolarsBCP:
                 {"name": "c", "type": "NVARCHAR", "length": 50},
                 {"name": "d", "type": "DATETIME2"},
                 {"name": "f", "type": "BIT"},
-                
             ]
         )
         df = pl.DataFrame(
@@ -98,7 +104,7 @@ class TestPolarsBCP:
                     "2021-02-01 00:00:00",
                     "2021-03-01 00:00:00",
                 ],
-                "f": [None, 'false', 'True']
+                "f": [None, "false", "True"],
             }
         )
         polars_io.load_bcp(df, schema, table, asset_schema)
@@ -117,7 +123,7 @@ class TestPolarsBCP:
         polars_io.load_bcp(df, schema, table, asset_schema)
 
     def test_bcp_load_alternative_column_names(self):
-        polars_io = polars_mssql_bcp.PolarsBCP(
+        polars_config = BCPConnectionConfig(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -126,12 +132,13 @@ class TestPolarsBCP:
             query_props={
                 "TrustServerCertificate": "yes",
             },
-            bcp_arguments={"-u": "", "-b": '20'},
+            bcp_arguments={"-u": "", "-b": "20"},
             bcp_path="/opt/mssql-tools18/bin/bcp",
             load_datetime_column_name="dt_col",
             load_uuid_column_name="uuid_col",
             row_hash_column_name="hash_col",
         )
+        polars_io = polars_mssql_bcp.PolarsBCP(config=polars_config)
 
         schema = "test"
         table = "table_data_alt_cols"
@@ -208,7 +215,7 @@ class TestPolarsBCP:
 
         polars_io._validate_columns(["b"], ["b"])
 
-    def test_add_metadata(self, polars_io):
+    def test_add_metadata(self, polars_io, polars_config):
         uuid = "1234"
         df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})
         df = polars_io._add_meta_columns(df, uuid_value=uuid)
@@ -216,25 +223,41 @@ class TestPolarsBCP:
 
         df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})
         df = polars_io._add_meta_columns(
-            df, uuid_value=uuid, add_hash=True, add_uuid=True, add_datetime=True
+            df,
+            uuid_value=uuid,
+            add_hash=True,
+            add_uuid=True,
+            add_datetime=True,
         )
         assert df.columns == ["a", "b", "c", "row_hash", "load_uuid", "load_datetime"]
 
         df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})
         df = polars_io._add_meta_columns(
-            df, uuid_value=uuid, add_hash=True, add_uuid=True, add_datetime=False
+            df,
+            uuid_value=uuid,
+            add_hash=True,
+            add_uuid=True,
+            add_datetime=False,
         )
         assert df.columns == ["a", "b", "c", "row_hash", "load_uuid"]
 
         df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})
         df = polars_io._add_meta_columns(
-            df, uuid_value=uuid, add_hash=True, add_uuid=False, add_datetime=False
+            df,
+            uuid_value=uuid,
+            add_hash=True,
+            add_uuid=False,
+            add_datetime=False,
         )
         assert df.columns == ["a", "b", "c", "row_hash"]
 
         df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6], "c": ["a", "b", "c"]})
         df = polars_io._add_meta_columns(
-            df, uuid_value=uuid, add_hash=False, add_uuid=False, add_datetime=False
+            df,
+            uuid_value=uuid,
+            add_hash=False,
+            add_uuid=False,
+            add_datetime=False,
         )
         assert df.columns == ["a", "b", "c"]
 
@@ -352,8 +375,7 @@ class TestPolarsBCP:
         df = polars_io._replace_values(df, schema)
         pl_testing.assert_frame_equal(df, expected)
 
-
-        input = pl.DataFrame({"has_null": ["NULL", 'null', None, "2021-01-01"]})
+        input = pl.DataFrame({"has_null": ["NULL", "null", None, "2021-01-01"]})
         expected = pl.DataFrame({"has_null": [None, None, None, "2021-01-01"]})
 
         schema = polars_mssql_bcp.AssetSchema(
@@ -361,21 +383,22 @@ class TestPolarsBCP:
                 {"name": "has_null", "type": "DATETIME2"},
             ]
         )
-        df =  polars_io._replace_values(input.lazy(), schema).collect()
-        pl_testing.assert_frame_equal(df.select('has_null'), expected)
+        df = polars_io._replace_values(input.lazy(), schema).collect()
+        pl_testing.assert_frame_equal(df.select("has_null"), expected)
 
         schema = polars_mssql_bcp.AssetSchema(
             [
                 {"name": "a", "type": "BIT"},
             ]
         )
-        input = pl.DataFrame({'a': [None, 'true', 'True', 'false', 'False']})
-        expected = pl.DataFrame({'a': [None, '1', '1', '0', '0']})
-        df =  polars_io._replace_values(input.lazy(), schema).collect()
-        pl_testing.assert_frame_equal(df.select('a'), expected)
+        input = pl.DataFrame({"a": [None, "true", "True", "false", "False"]})
+        expected = pl.DataFrame({"a": [None, "1", "1", "0", "0"]})
+        df = polars_io._replace_values(input.lazy(), schema).collect()
+        pl_testing.assert_frame_equal(df.select("a"), expected)
 
-
-    def test_process_datetime(self, polars_io: polars_mssql_bcp.PolarsBCP):
+    def test_process_datetime(
+        self, polars_io: polars_mssql_bcp.PolarsBCP, polars_config
+    ):
         input = pl.DataFrame(
             {
                 "a": ["2021-01-01", "2021-01-01 05:00:00", "2021-01-01 10:00:00"],
@@ -416,7 +439,11 @@ class TestPolarsBCP:
             [
                 {"name": "a", "type": "DATETIME2"},
                 {"name": "b", "type": "BIGINT"},
-                {"name": "c", "type": "DATETIME2", "datetime_format": '%Y-%m-%d %H:%M:%S%:z'},
+                {
+                    "name": "c",
+                    "type": "DATETIME2",
+                    "datetime_format": "%Y-%m-%d %H:%M:%S%:z",
+                },
             ]
         )
         df = polars_io._process_datetime(input, schema).collect()
@@ -491,7 +518,9 @@ class TestPolarsBCP:
             )
             assert os.path.exists(os.path.join(dir, "test.csv"))
 
-    def test_get_sql_columns(self, polars_io):
+    def test_get_sql_columns(
+        self, polars_io: PolarsBCP, polars_config: BCPConnectionConfig
+    ):
         with self.connect_mssql() as conn:
             sql = """
             CREATE TABLE test.polars_test_sql_columns (
@@ -502,17 +531,19 @@ class TestPolarsBCP:
             """
             conn.execute(text(sql))
             columns = polars_io._get_sql_columns(
-                conn, polars_io.database, "test", "polars_test_sql_columns"
+                conn, polars_config.database, "test", "polars_test_sql_columns"
             )
             assert columns == ["a", "b", "c"]
             self.cleanup_table(conn, "test", "polars_test_sql_columns")
 
             columns = polars_io._get_sql_columns(
-                conn, polars_io.database, "test", "polars_test_sql_columns"
+                conn, polars_config.database, "test", "polars_test_sql_columns"
             )
             assert columns is None
 
-    def test_create_table(self, polars_io):
+    def test_create_table(
+        self, polars_io: PolarsBCP, polars_config: BCPConnectionConfig
+    ):
         base_schema = polars_mssql_bcp.AssetSchema(
             [
                 {"name": "a", "type": "DATETIME2"},
@@ -533,13 +564,13 @@ class TestPolarsBCP:
 
             polars_io._create_table(
                 conn,
-                polars_io.database, 
+                polars_config.database,
                 "test",
                 "pandas_test_create_table",
                 schema.get_sql_columns(),
             )
             columns = polars_io._get_sql_columns(
-                conn, polars_io.database, "test", "pandas_test_create_table"
+                conn, polars_config.database, "test", "pandas_test_create_table"
             )
             assert columns == ["a", "b", "c", "row_hash", "load_uuid", "load_datetime"]
             self.cleanup_table(conn, "test", "pandas_test_create_table")
@@ -548,18 +579,22 @@ class TestPolarsBCP:
             schema.add_column(load_uuid_col)
             schema.add_column(load_datetime_col)
             polars_io._create_table(
-                conn, polars_io.database, "test", "pandas_test_create_table", schema.get_sql_columns()
+                conn,
+                polars_config.database,
+                "test",
+                "pandas_test_create_table",
+                schema.get_sql_columns(),
             )
             columns = polars_io._get_sql_columns(
                 conn,
-                polars_io.database, 
+                polars_config.database,
                 "test",
                 "pandas_test_create_table",
             )
             assert columns == ["a", "b", "c", "load_uuid", "load_datetime"]
             self.cleanup_table(conn, "test", "pandas_test_create_table")
 
-    def test_row_hash(self, polars_io: polars_mssql_bcp.PolarsBCP):
+    def test_row_hash(self, polars_io: PolarsBCP, polars_config: BCPConnectionConfig):
         with self.connect_mssql() as conn:
             schema = "test"
             table = "polars_test_row_hash"
@@ -612,7 +647,7 @@ class TestPolarsBCP:
             ]
             self.cleanup_table(conn, "test", "polars_test_row_hash")
 
-    def test_filter_columns(self, monkeypatch, polars_io: polars_mssql_bcp.PolarsBCP):
+    def test_filter_columns(self, monkeypatch, polars_io: PolarsBCP):
         df = pl.DataFrame(
             {
                 "a": [1, 2, 3],
@@ -628,7 +663,7 @@ class TestPolarsBCP:
                 {"name": "c", "type": "NVARCHAR", "length": 50},
             ]
         )
-        df = polars_io._filter_columns(df, schema.get_columns())
+        df = polars_io._filter_columns(df.lazy(), schema.get_columns())
         assert df.columns == ["a", "b", "c"]
 
     def test_remove_collation_from_format_file(
@@ -649,7 +684,8 @@ class TestPolarsBCP:
             assert result == format_files.format_file_expected
 
     def test_identity_column(self):
-        polars_io = polars_mssql_bcp.PolarsBCP(
+
+        polars_config = BCPConnectionConfig(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -660,9 +696,10 @@ class TestPolarsBCP:
             },
             bcp_arguments={"-u": "", "-b": 20},
             bcp_path="/opt/mssql-tools18/bin/bcp",
-            add_identity_column=True
+            add_identity_column=True,
         )
-        
+        polars_io = polars_mssql_bcp.PolarsBCP(config=polars_config)
+
         df = pl.DataFrame(
             {
                 "a": [1, 2, 3],
@@ -672,22 +709,25 @@ class TestPolarsBCP:
             }
         )
         schema = [
-                {"name": "a", "type": "BIGINT"},
-                {"name": "b", "type": "BIGINT"},
-                {"name": "c", "type": "NVARCHAR", "length": 50},
-            ]
-        
+            {"name": "a", "type": "BIGINT"},
+            {"name": "b", "type": "BIGINT"},
+            {"name": "c", "type": "NVARCHAR", "length": 50},
+        ]
 
-        polars_io.load_bcp(
-            df, 'polars_bcp', 'pk_tst', schema 
-        )
-        polars_io.load_bcp(
-            df, 'polars_bcp', 'pk_tst', schema 
-        )
+        polars_io.load_bcp(df, "polars_bcp", "pk_tst", schema)
+        polars_io.load_bcp(df, "polars_bcp", "pk_tst", schema)
 
         with self.connect_mssql() as con:
             s = "select column_name from information_schema.columns where table_name = 'pk_tst' and table_schema = 'polars_bcp'"
             r = con.exec_driver_sql(s)
             res = r.fetchall()
 
-            assert {_[0] for _ in res} == {'id', 'row_hash', 'a', 'b', 'load_datetime', 'load_uuid', 'c'}
+            assert {_[0] for _ in res} == {
+                "id",
+                "row_hash",
+                "a",
+                "b",
+                "load_datetime",
+                "load_uuid",
+                "c",
+            }

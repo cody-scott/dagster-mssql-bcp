@@ -11,14 +11,14 @@ from sqlalchemy import URL, create_engine, text
 from dagster_mssql_bcp.bcp_core.asset_schema import AssetSchema
 from dagster_mssql_bcp.bcp_pandas import pandas_mssql_bcp
 
-from dagster_mssql_bcp.bcp_core import bcp_core
+from dagster_mssql_bcp.bcp_core import bcp_core, BCPConnectionConfig
 from unittest.mock import MagicMock
 
 
 class TestPandasBCP:
     @pytest.fixture
-    def pandas_io(self) -> pandas_mssql_bcp.PandasBCP:
-        return pandas_mssql_bcp.PandasBCP(
+    def config(self):
+        return BCPConnectionConfig(
             host=os.getenv("TARGET_DB__HOST", ""),
             port=os.getenv("TARGET_DB__PORT", "1433"),
             database=os.getenv("TARGET_DB__DATABASE", ""),
@@ -27,9 +27,13 @@ class TestPandasBCP:
             query_props={
                 "TrustServerCertificate": "yes",
             },
-            bcp_arguments={"-u": "", "-b": 20},
+            bcp_arguments={"-u": "", "-b": "20"},
             bcp_path="/opt/mssql-tools18/bin/bcp",
         )
+
+    @pytest.fixture
+    def pandas_io(self, config) -> pandas_mssql_bcp.PandasBCP:
+        return pandas_mssql_bcp.PandasBCP(config=config)
 
     @contextmanager
     def connect_mssql(self):
@@ -212,7 +216,18 @@ class TestPandasBCP:
         pl_testing.assert_frame_equal(df, expected)
 
         df = pd.DataFrame(
-            {"c": ["nan", "NAN", "c", "abc\tdef", "abc\t\ndef", "abc\ndef", "nan", "somenanthing"]}
+            {
+                "c": [
+                    "nan",
+                    "NAN",
+                    "c",
+                    "abc\tdef",
+                    "abc\t\ndef",
+                    "abc\ndef",
+                    "nan",
+                    "somenanthing",
+                ]
+            }
         )
         expected = df = pd.DataFrame(
             {
@@ -224,7 +239,7 @@ class TestPandasBCP:
                     "abc__TAB____NEWLINE__def",
                     "abc__NEWLINE__def",
                     "",
-                    "somenanthing"
+                    "somenanthing",
                 ]
             }
         )
@@ -332,7 +347,7 @@ class TestPandasBCP:
             )
             assert os.path.exists(os.path.join(dir, "test.csv"))
 
-    def test_get_sql_columns(self, pandas_io):
+    def test_get_sql_columns(self, pandas_io, config: BCPConnectionConfig):
         with self.connect_mssql() as conn:
             sql = """
             CREATE TABLE test.pandas_test_sql_columns (
@@ -343,17 +358,17 @@ class TestPandasBCP:
             """
             conn.exec_driver_sql(sql)
             columns = pandas_io._get_sql_columns(
-                conn, pandas_io.database, "test", "pandas_test_sql_columns"
+                conn, config.database, "test", "pandas_test_sql_columns"
             )
             assert columns == ["a", "b", "c"]
             self.cleanup_table(conn, "test", "pandas_test_sql_columns")
 
             columns = pandas_io._get_sql_columns(
-                conn, pandas_io.database, "test", "pandas_test_sql_columns"
+                conn, config.database, "test", "pandas_test_sql_columns"
             )
             assert columns is None
 
-    def test_create_table(self, pandas_io):
+    def test_create_table(self, pandas_io, config: BCPConnectionConfig):
         base_schema = pandas_mssql_bcp.AssetSchema(
             [
                 {"name": "a", "type": "DATETIME2"},
@@ -374,13 +389,13 @@ class TestPandasBCP:
 
             pandas_io._create_table(
                 conn,
-                pandas_io.database,
+                config.database,
                 "test",
                 "pandas_test_create_table",
                 schema.get_sql_columns(),
             )
             columns = pandas_io._get_sql_columns(
-                conn, pandas_io.database, "test", "pandas_test_create_table"
+                conn, config.database, "test", "pandas_test_create_table"
             )
             assert columns == ["a", "b", "c", "row_hash", "load_uuid", "load_datetime"]
             self.cleanup_table(conn, "test", "pandas_test_create_table")
@@ -389,11 +404,17 @@ class TestPandasBCP:
             schema.add_column(load_uuid_col)
             schema.add_column(load_datetime_col)
 
-            pandas_io._create_table(conn, pandas_io.database, "test", "pandas_test_create_table", schema.get_sql_columns())
+            pandas_io._create_table(
+                conn,
+                config.database,
+                "test",
+                "pandas_test_create_table",
+                schema.get_sql_columns(),
+            )
 
             columns = pandas_io._get_sql_columns(
                 conn,
-                pandas_io.database,
+                config.database,
                 "test",
                 "pandas_test_create_table",
             )

@@ -1,11 +1,9 @@
-from dagster_mssql_bcp.bcp_core import BCPIOManagerCore
+from dagster_mssql_bcp.bcp_core import BCPIOManagerCore, BCPResource
 
 import polars as pl
-from .polars_mssql_resource import PolarsBCPResource
-
 
 class PolarsBCPIOManager(BCPIOManagerCore):
-    resource: PolarsBCPResource
+    resource: BCPResource
     
     def _read_from_database(self, sql, connection_string):
         df = pl.read_database_uri(

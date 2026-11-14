@@ -11,23 +11,6 @@ from dagster import (
 )
 
 
-def calculate_max_chunk(df):
-    """SQL Server has a max chunk (rows*cols) of 2100, so control that here
-    chunk size determines the number of rows it will do at once.
-    therefore...
-    2000 rows and 1 column means it can process 2000 rows at a time -> chunk size 2000
-    2000 rows and 2 columns means it can process 1000 rows at a time -> chunk size 1000
-    etc.
-    """
-    rows, cols = df.shape
-    if cols == 0:
-        return 1000
-
-    max_params = 2000
-    max_chunksize = max_params // cols
-
-    return max_chunksize
-
 
 def get_select_statement(table: str, schema: str, context, columns: list[str] | None = None) -> str:
     where_clause = _partition_where_clause(context)
